@@ -359,8 +359,8 @@ with our architecture decisions:
 |---|---|---|
 | 0 — Setup | ✅ Complete | Environment fully configured |
 | 1.1 — Player Scene | ✅ Complete | Player moves, boundaries work, orange triangle placeholder |
-| 1.2 — Enemy Spawning | ⏳ Next | Start here |
-| 1.3 — Spell System | ⬜ Pending | |
+| 1.2 — Enemy Spawning | ✅ Complete | enemies spawn, chase player, added aggro radius |
+| 1.3 — Spell System | ⏳ Next | Start here |
 | 1.4 — Life System | ⬜ Pending | |
 | 1.5 — Alpha Polish | ⬜ Pending | |
 | 2.1 — Spell Combos | ⬜ Pending | |

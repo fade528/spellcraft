@@ -175,3 +175,52 @@ Implementation: TouchpadBase + TouchpadKnob ColorRects,
 drag input via InputEventScreenDrag, 8-direction facing
 via FacingMarker Polygon2D, screen clamping to 1080x1920
 Notes: Player starts top-left, will centre in Game scene
+
+---
+
+### Enemy Spawning
+**Date:** 2026-04-06
+**Decision:** Chaser enemies are separate CharacterBody2D scenes spawned by an EnemySpawner timer into the Game scene.
+**Reason:** Keeps enemy behaviour self-contained while the spawner owns cadence and tuning through exported values.
+**Implementation:**
+```gdscript
+@export var spawn_rate: float = 1.0
+@export var enemy_speed: float = 150.0
+
+func _on_spawn_timer_timeout() -> void:
+    var enemy = enemy_scene.instantiate() as CharacterBody2D
+    enemy.position = Vector2(randf_range(50.0, 1030.0), -50.0)
+    enemy.set("move_speed", enemy_speed)
+    get_parent().add_child(enemy)
+```
+**Notes:** Enemies join the `enemies` group on `_ready()` and despawn after passing `y > 1980`.
+
+---
+
+### Scrolling Background
+**Date:** 2026-04-06
+**Decision:** Two stacked `ColorRect` nodes scroll downward and wrap to fake an infinite background in portrait mode.
+**Reason:** Placeholder art is enough for early feel testing and keeps Session 1.2 lightweight.
+**Implementation:**
+```gdscript
+func _scroll_background(background_rect: ColorRect, delta: float) -> void:
+    background_rect.position.y += background_scroll_speed * delta
+    if background_rect.position.y >= 1920.0:
+        background_rect.position.y -= 3840.0
+```
+**Notes:** Current playable harness is `res://scenes/game.tscn`, which contains `ScrollingBackground`, `Player`, and `EnemySpawner`.
+
+### Enemy Chase Behaviour
+Date: 2026-04-06
+Decision: Chasers disengage when player distance exceeds chase_distance (default 300px)
+Reason: Without cutoff, enemies stack on player indefinitely and never despawn
+Implementation: Distance check in _physics_process before normalizing direction vector.
+If within chase_distance, move toward player. Otherwise fall straight down.
+Notes: chase_distance is @export — tunable in inspector. Revisit during enemy tuning session.
+
+### Collision Architecture (interim)
+Date: 2026-04-06
+Decision: Enemies and player both disable physical body collision with each other for now
+Reason: move_and_slide() caused stacking. Damage will come via Area2D hurtboxes in Session 1.4
+Implementation: set_collision_mask_value(1/2, false) in _ready() on both enemy and player
+Notes: Remove this when hurtboxes are implemented in 1.4 — physical layers should be restored

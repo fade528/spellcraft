@@ -22,6 +22,7 @@ var facing_rotation := 0.0
 
 func _ready() -> void:
 	position = SCREEN_SIZE * 0.5
+	set_collision_mask_value(2, false)
 	_configure_touchpad()
 	_update_clamp_margin()
 	_apply_facing_rotation()
@@ -35,9 +36,9 @@ func _unhandled_input(event: InputEvent) -> void:
 		_handle_screen_drag(event)
 
 
-func _physics_process(delta: float) -> void:
+func _physics_process(_delta: float) -> void:
 	velocity = move_input * move_speed
-	position += velocity * delta
+	move_and_slide()
 	position = position.clamp(clamp_margin, SCREEN_SIZE - clamp_margin)
 
 	if move_input != Vector2.ZERO:
