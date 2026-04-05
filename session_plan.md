@@ -358,8 +358,8 @@ with our architecture decisions:
 | Session | Status | Notes |
 |---|---|---|
 | 0 — Setup | ✅ Complete | Environment fully configured |
-| 1.1 — Player Scene | ⏳ Next | Start here |
-| 1.2 — Enemy Spawning | ⬜ Pending | |
+| 1.1 — Player Scene | ✅ Complete | Player moves, boundaries work, orange triangle placeholder |
+| 1.2 — Enemy Spawning | ⏳ Next | Start here |
 | 1.3 — Spell System | ⬜ Pending | |
 | 1.4 — Life System | ⬜ Pending | |
 | 1.5 — Alpha Polish | ⬜ Pending | |

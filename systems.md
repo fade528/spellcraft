@@ -167,3 +167,11 @@ func _on_spawn_timer_timeout():
     add_child(enemy)
 ```
 **Notes:** Enemies despawn when position.y > 1980. spawn_rate and enemy_speed exported.
+
+### Player Movement
+Date: [6 April 2026]
+Decision: CharacterBody2D with touchpad CanvasLayer
+Implementation: TouchpadBase + TouchpadKnob ColorRects,
+drag input via InputEventScreenDrag, 8-direction facing
+via FacingMarker Polygon2D, screen clamping to 1080x1920
+Notes: Player starts top-left, will centre in Game scene
