@@ -1,3 +1,8 @@
+## Session Management
+Each working session is a separate chat. Always open with 
+"Read context.md first" then the specific task. 
+See session_plan.md for the full list of planned sessions.
+
 # Spellcraft Roguelite — Master Context
 
 > Read this first. This file gives you everything needed to assist on this project without reading all other docs.
