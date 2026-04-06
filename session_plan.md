@@ -362,7 +362,7 @@ with our architecture decisions:
 | 1.2 — Enemy Spawning | ✅ Complete | enemies spawn, chase player, added aggro radius |
 | 1.3 — Spell System | ✅ Complete | spells fire correctly and enemies despawn after hit |
 | 1.4 — Life System | ✅ Complete | added hp bar yo |
-| 1.5 — Alpha Polish | ✅ Complete | Full juice pass done. All audio assigned. APK export next. |
+| 1.5 — Alpha Polish | ✅ Complete | Full juice pass done. All audio assigned. APK exported and tested on device. |
 | 2.1 — Spell Combos | ⏳ Next | Start here |
 | 2.2 — Crafting UI | ⬜ Pending | |
 | 2.3 — Enemy Variants | ⬜ Pending | |
