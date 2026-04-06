@@ -234,3 +234,41 @@ Implementation: `res://scripts/spell_data.gd` defines `damage`, `cooldown`, and 
 `res://scripts/spell_caster.gd` runs a cooldown Timer, aims at the nearest node in group `enemies`, and instantiates `res://scenes/spell_projectile.tscn`.
 `res://scripts/spell_projectile.gd` moves upward by default, can be aimed toward a target, emits a hit signal, and damages enemies through their hurtbox `Area2D`.
 Notes: Starter spell resource is `res://resources/spells/basic_bolt.tres`. Enemies now have a layer-4 hurtbox child and a `take_damage(amount)` method with exported `max_hp`.
+
+### Life System + HP Bar (Session 1.4 — complete)
+**Date:** 2026-04-06
+**Decision:** Single HP bar owned by ProgressionManager autoload. Lives are retained as a
+second layer — losing all HP costs one life, refills HP to max, and triggers respawn.
+Three lives lost triggers game over.
+**Reason:** HP bar is more future-proof than lives-only for a roguelite where spells, items,
+and enemies will deal variable damage amounts.
+**Implementation:**
+ProgressionManager (autoload at /root/ProgressionManager) owns `lives`, `current_hp`,
+`max_hp`. Exposes `take_damage(amount)`, `lose_life()`, `refill_hp()`, `reset_run()`.
+Emits `hp_changed(current_hp, max_hp)` and `life_lost(lives_remaining)` and `game_over`.
+
+player.gd enforces iframes locally, then delegates to ProgressionManager.take_damage().
+player_hurtbox.gd (Area2D layer 3, mask 2) detects enemy body overlap and calls
+player.take_damage(contact_damage). contact_damage is @export, default 10.0.
+
+game.gd connects life_lost → clears enemies/projectiles groups → calls player.respawn().
+Connects game_over → change_scene_to_file game_over.tscn.
+game_over.gd calls ProgressionManager.reset_run() before returning to game.tscn.
+
+HUD shows three ColorRect life icons + ProgressBar (HPBar) + Label (HPLabel, format "100 / 100").
+All HUD nodes reference ProgressionManager via get_node_or_null("/root/ProgressionManager")
+rather than the bare global name — workaround for a UID autoload registration issue when
+editing scripts externally in VS Code.
+
+**Notes:**
+- iframe_duration is @export on player.gd, default 1.5s. Tunable in inspector.
+- max_hp and starting_lives are @export on ProgressionManager. Tunable in inspector.
+- Autoload must be registered via Godot editor UI (Project → Project Settings → Globals →
+  Autoload), not by editing project.godot directly — direct edits produce a UID reference
+  that Godot can't resolve. If the path shows as blank in the Autoload tab, delete and
+  re-add the entry.
+- All scripts use get_node_or_null("/root/ProgressionManager") as the safe fetch pattern.
+  Do not revert to bare ProgressionManager global references until the UID issue is confirmed
+  resolved.
+- Projectile-to-player damage not yet implemented (no layer-5 → layer-3 mask). Add in a
+  future combat session.

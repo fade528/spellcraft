@@ -361,8 +361,8 @@ with our architecture decisions:
 | 1.1 — Player Scene | ✅ Complete | Player moves, boundaries work, orange triangle placeholder |
 | 1.2 — Enemy Spawning | ✅ Complete | enemies spawn, chase player, added aggro radius |
 | 1.3 — Spell System | ✅ Complete | spells fire correctly and enemies despawn after hit |
-| 1.4 — Life System | ⏳ Next | Start here |
-| 1.5 — Alpha Polish | ⬜ Pending | |
+| 1.4 — Life System | ✅ Complete | added hp bar yo |
+| 1.5 — Alpha Polish | ⏳ Next | Start here |
 | 2.1 — Spell Combos | ⬜ Pending | |
 | 2.2 — Crafting UI | ⬜ Pending | |
 | 2.3 — Enemy Variants | ⬜ Pending | |

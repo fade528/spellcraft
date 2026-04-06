@@ -1,32 +1,39 @@
 extends CharacterBody2D
 
 @export var move_speed: float = 300.0
+@export var iframe_duration: float = 1.5
 
 const SCREEN_SIZE := Vector2(1080.0, 1920.0)
 const TOUCHPAD_RADIUS := 110.0
 const TOUCHPAD_DEADZONE := 12.0
 const TOUCHPAD_ZONE_RATIO := 0.65
+const RESPAWN_POSITION := Vector2(540.0, 1680.0)
 
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var player_sprite: Sprite2D = $PlayerSprite
 @onready var facing_marker: Polygon2D = $FacingMarker
+@onready var hurtbox: Area2D = $Hurtbox
 @onready var touchpad_base: ColorRect = $TouchpadLayer/TouchpadBase
 @onready var touchpad_knob: ColorRect = $TouchpadLayer/TouchpadKnob
+@onready var iframe_timer: Timer = $IframeTimer
 
 var move_input := Vector2.ZERO
 var active_touch_index := -1
 var touchpad_center := Vector2.ZERO
 var clamp_margin := Vector2(48.0, 48.0)
 var facing_rotation := 0.0
+var is_invincible := false
+var iframe_tween: Tween
 
 
 func _ready() -> void:
-	position = SCREEN_SIZE * 0.5
+	position = RESPAWN_POSITION
 	set_collision_mask_value(2, false)
 	_configure_touchpad()
 	_update_clamp_margin()
 	_apply_facing_rotation()
 	_set_touchpad_visible(false)
+	iframe_timer.timeout.connect(_on_iframe_timer_timeout)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -113,3 +120,51 @@ func _update_clamp_margin() -> void:
 func _set_touchpad_visible(is_visible: bool) -> void:
 	touchpad_base.visible = is_visible
 	touchpad_knob.visible = is_visible
+
+
+func take_damage(amount: float) -> void:
+	if is_invincible:
+		return
+
+	_start_iframes()
+	var progression_manager := _get_progression_manager()
+	if progression_manager != null:
+		progression_manager.take_damage(amount)
+
+
+func respawn() -> void:
+	position = RESPAWN_POSITION
+	velocity = Vector2.ZERO
+	move_input = Vector2.ZERO
+	active_touch_index = -1
+	_set_touchpad_visible(false)
+
+
+func _start_iframes() -> void:
+	is_invincible = true
+	iframe_timer.start(iframe_duration)
+	_play_iframe_visual()
+
+
+func _on_iframe_timer_timeout() -> void:
+	is_invincible = false
+	if iframe_tween != null:
+		iframe_tween.kill()
+		player_sprite.modulate.a = 1.0
+		facing_marker.modulate.a = 1.0
+
+
+func _play_iframe_visual() -> void:
+	if iframe_tween != null:
+		iframe_tween.kill()
+
+	iframe_tween = create_tween()
+	iframe_tween.set_loops()
+	iframe_tween.tween_property(player_sprite, "modulate:a", 0.25, 0.12)
+	iframe_tween.parallel().tween_property(facing_marker, "modulate:a", 0.25, 0.12)
+	iframe_tween.tween_property(player_sprite, "modulate:a", 1.0, 0.12)
+	iframe_tween.parallel().tween_property(facing_marker, "modulate:a", 1.0, 0.12)
+
+
+func _get_progression_manager() -> Node:
+	return get_node_or_null("/root/ProgressionManager")

@@ -1,30 +1,83 @@
-[gd_scene load_steps=4 format=3]
+[gd_scene format=3 uid="uid://8la4u57j1qln"]
 
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_x4b6v"]
-[ext_resource type="Script" path="res://scripts/enemy_spawner.gd" id="2_mjppw"]
-[ext_resource type="Script" path="res://scripts/scrolling_background.gd" id="3_qcy2w"]
+[ext_resource type="Script" uid="uid://cwygr504ldawm" path="res://scripts/enemy_spawner.gd" id="2_mjppw"]
+[ext_resource type="Script" uid="uid://mclfvuor6aao" path="res://scripts/scrolling_background.gd" id="3_qcy2w"]
+[ext_resource type="Script" uid="uid://brin7p1ks5g10" path="res://scripts/game.gd" id="4_uh1wc"]
+[ext_resource type="Script" uid="uid://dwcwjyl62bay5" path="res://scripts/hud.gd" id="5_8n6rn"]
 
-[node name="Game" type="Node2D"]
+[node name="Game" type="Node2D" unique_id=665229771]
+script = ExtResource("4_uh1wc")
 
-[node name="ScrollingBackground" type="Node2D" parent="."]
+[node name="ScrollingBackground" type="Node2D" parent="." unique_id=403960310]
 script = ExtResource("3_qcy2w")
 
-[node name="BackgroundA" type="ColorRect" parent="ScrollingBackground"]
+[node name="BackgroundA" type="ColorRect" parent="ScrollingBackground" unique_id=936582406]
 offset_right = 1080.0
 offset_bottom = 1920.0
 mouse_filter = 2
 
-[node name="BackgroundB" type="ColorRect" parent="ScrollingBackground"]
+[node name="BackgroundB" type="ColorRect" parent="ScrollingBackground" unique_id=1592952445]
 offset_top = -1920.0
 offset_right = 1080.0
-offset_bottom = 0.0
 mouse_filter = 2
 
-[node name="Player" parent="." instance=ExtResource("1_x4b6v")]
+[node name="Player" parent="." unique_id=1842365894 instance=ExtResource("1_x4b6v")]
 
-[node name="Projectiles" type="Node2D" parent="." groups=["projectiles"]]
+[node name="Projectiles" type="Node2D" parent="." unique_id=518292413 groups=["projectiles"]]
 
-[node name="EnemySpawner" type="Node2D" parent="."]
+[node name="EnemySpawner" type="Node2D" parent="." unique_id=1950849714]
 script = ExtResource("2_mjppw")
 
-[node name="SpawnTimer" type="Timer" parent="EnemySpawner"]
+[node name="SpawnTimer" type="Timer" parent="EnemySpawner" unique_id=2032006331]
+
+[node name="HUD" type="CanvasLayer" parent="." unique_id=180573630]
+script = ExtResource("5_8n6rn")
+
+[node name="MarginContainer" type="MarginContainer" parent="HUD" unique_id=123117508]
+anchors_preset = 10
+anchor_right = 1.0
+offset_left = 24.0
+offset_top = 24.0
+offset_right = -24.0
+offset_bottom = 180.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="HUD/MarginContainer" unique_id=971889883]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="HBoxContainer" type="HBoxContainer" parent="HUD/MarginContainer/VBoxContainer" unique_id=1520815143]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="Life1" type="ColorRect" parent="HUD/MarginContainer/VBoxContainer/HBoxContainer" unique_id=1059120307]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+color = Color(0.94, 0.2, 0.35, 1)
+
+[node name="Life2" type="ColorRect" parent="HUD/MarginContainer/VBoxContainer/HBoxContainer" unique_id=916827057]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+color = Color(0.94, 0.2, 0.35, 1)
+
+[node name="Life3" type="ColorRect" parent="HUD/MarginContainer/VBoxContainer/HBoxContainer" unique_id=230216764]
+custom_minimum_size = Vector2(42, 42)
+layout_mode = 2
+color = Color(0.94, 0.2, 0.35, 1)
+
+[node name="HPRow" type="HBoxContainer" parent="HUD/MarginContainer/VBoxContainer" unique_id=2065889652]
+layout_mode = 2
+theme_override_constants/separation = 16
+
+[node name="HPBar" type="ProgressBar" parent="HUD/MarginContainer/VBoxContainer/HPRow" unique_id=1488574972]
+custom_minimum_size = Vector2(320, 28)
+layout_mode = 2
+size_flags_horizontal = 3
+value = 100.0
+show_percentage = false
+
+[node name="HPLabel" type="Label" parent="HUD/MarginContainer/VBoxContainer/HPRow" unique_id=1057760412]
+custom_minimum_size = Vector2(120, 0)
+layout_mode = 2
+theme_override_font_sizes/font_size = 22
+text = "100 / 100"
