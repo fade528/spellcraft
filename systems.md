@@ -224,3 +224,13 @@ Decision: Enemies and player both disable physical body collision with each othe
 Reason: move_and_slide() caused stacking. Damage will come via Area2D hurtboxes in Session 1.4
 Implementation: set_collision_mask_value(1/2, false) in _ready() on both enemy and player
 Notes: Remove this when hurtboxes are implemented in 1.4 — physical layers should be restored
+---
+
+### Spell System
+Date: 2026-04-06
+Decision: Spells use `SpellData` resources for tuning, a `SpellCaster` child on the player for auto-fire, and `Area2D` projectiles against enemy hurtboxes.
+Reason: This keeps spell balance data separate from runtime casting logic and matches the planned layer-4/layer-5 hurtbox architecture.
+Implementation: `res://scripts/spell_data.gd` defines `damage`, `cooldown`, and `projectile_speed`.
+`res://scripts/spell_caster.gd` runs a cooldown Timer, aims at the nearest node in group `enemies`, and instantiates `res://scenes/spell_projectile.tscn`.
+`res://scripts/spell_projectile.gd` moves upward by default, can be aimed toward a target, emits a hit signal, and damages enemies through their hurtbox `Area2D`.
+Notes: Starter spell resource is `res://resources/spells/basic_bolt.tres`. Enemies now have a layer-4 hurtbox child and a `take_damage(amount)` method with exported `max_hp`.

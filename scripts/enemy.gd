@@ -2,12 +2,14 @@ extends CharacterBody2D
 
 @export var move_speed: float = 150.0
 @export var chase_distance: float = 300.0
+@export var max_hp: float = 20.0
 
 const DESPAWN_Y := 1980.0
 
 @onready var enemy_sprite: ColorRect = $EnemySprite
 
 var player_ref: Node2D
+var current_hp: float
 
 
 func _ready() -> void:
@@ -17,6 +19,7 @@ func _ready() -> void:
 	set_collision_layer_value(2, true)
 	set_collision_mask_value(1, false)
 	set_collision_mask_value(2, false)
+	current_hp = max_hp
 
 
 func _physics_process(_delta: float) -> void:
@@ -34,4 +37,11 @@ func _physics_process(_delta: float) -> void:
 	move_and_slide()
 
 	if global_position.y > DESPAWN_Y:
+		queue_free()
+
+
+func take_damage(amount: float) -> void:
+	current_hp -= amount
+
+	if current_hp <= 0.0:
 		queue_free()

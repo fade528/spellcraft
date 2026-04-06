@@ -22,6 +22,8 @@ mouse_filter = 2
 
 [node name="Player" parent="." instance=ExtResource("1_x4b6v")]
 
+[node name="Projectiles" type="Node2D" parent="." groups=["projectiles"]]
+
 [node name="EnemySpawner" type="Node2D" parent="."]
 script = ExtResource("2_mjppw")
 

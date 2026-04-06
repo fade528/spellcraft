@@ -1,7 +1,10 @@
-[gd_scene format=3]
+[gd_scene load_steps=6 format=3]
 
 [ext_resource type="Script" path="res://scripts/player.gd" id="1_h38n5"]
 [ext_resource type="Texture2D" path="res://icon.svg" id="2_kyqcl"]
+[ext_resource type="Script" path="res://scripts/spell_caster.gd" id="3_0n1x0"]
+[ext_resource type="PackedScene" path="res://scenes/spell_projectile.tscn" id="4_mxdk5"]
+[ext_resource type="Resource" path="res://resources/spells/basic_bolt.tres" id="5_h8y0p"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_4v1ig"]
 radius = 48.0
@@ -34,3 +37,10 @@ mouse_filter = 2
 offset_right = 96.0
 offset_bottom = 96.0
 mouse_filter = 2
+
+[node name="SpellCaster" type="Node2D" parent="."]
+script = ExtResource("3_0n1x0")
+spell_data = ExtResource("5_h8y0p")
+projectile_scene = ExtResource("4_mxdk5")
+
+[node name="CooldownTimer" type="Timer" parent="SpellCaster"]

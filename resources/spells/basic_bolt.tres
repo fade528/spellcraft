@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="SpellData" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/spell_data.gd" id="1_m2gyf"]
+
+[resource]
+script = ExtResource("1_m2gyf")
+spell_name = "Basic Bolt"
+primary_element = "Arcane"
+modifier_element = "None"
+finisher_element = "None"
+delivery_type = "Projectile"
+damage = 10.0
+cooldown = 0.45
+projectile_speed = 900.0
