@@ -3,8 +3,11 @@
 [ext_resource type="PackedScene" path="res://scenes/player.tscn" id="1_x4b6v"]
 [ext_resource type="Script" uid="uid://cwygr504ldawm" path="res://scripts/enemy_spawner.gd" id="2_mjppw"]
 [ext_resource type="Script" uid="uid://mclfvuor6aao" path="res://scripts/scrolling_background.gd" id="3_qcy2w"]
+[ext_resource type="AudioStream" uid="uid://c0ja8cjfmsmag" path="res://assets/audio/sfx/spell_hit.wav" id="4_p57ef"]
 [ext_resource type="Script" uid="uid://brin7p1ks5g10" path="res://scripts/game.gd" id="4_uh1wc"]
 [ext_resource type="Script" uid="uid://dwcwjyl62bay5" path="res://scripts/hud.gd" id="5_8n6rn"]
+[ext_resource type="AudioStream" uid="uid://pkefwqn6m00a" path="res://assets/audio/sfx/hurt.wav" id="5_u5sy4"]
+[ext_resource type="AudioStream" uid="uid://ctuof6mvvl7p2" path="res://assets/audio/music/mischeifaudop.wav" id="6_gee14"]
 
 [node name="Game" type="Node2D" unique_id=665229771]
 script = ExtResource("4_uh1wc")
@@ -24,7 +27,22 @@ mouse_filter = 2
 
 [node name="Player" parent="." unique_id=1842365894 instance=ExtResource("1_x4b6v")]
 
+[node name="Camera2D" type="Camera2D" parent="." unique_id=196335121]
+position = Vector2(540, 960)
+
 [node name="Projectiles" type="Node2D" parent="." unique_id=518292413 groups=["projectiles"]]
+
+[node name="SpellHitSFX" type="AudioStreamPlayer" parent="." unique_id=1916401224]
+stream = ExtResource("4_p57ef")
+
+[node name="PlayerHurtSFX" type="AudioStreamPlayer" parent="." unique_id=193532441]
+stream = ExtResource("5_u5sy4")
+
+[node name="EnemyDeathSFX" type="AudioStreamPlayer" parent="." unique_id=1496702550]
+
+[node name="BGMusic" type="AudioStreamPlayer" parent="." unique_id=1024473811]
+stream = ExtResource("6_gee14")
+autoplay = true
 
 [node name="EnemySpawner" type="Node2D" parent="." unique_id=1950849714]
 script = ExtResource("2_mjppw")

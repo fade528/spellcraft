@@ -272,3 +272,30 @@ editing scripts externally in VS Code.
   resolved.
 - Projectile-to-player damage not yet implemented (no layer-5 → layer-3 mask). Add in a
   future combat session.
+
+  ### Audio — Session 1.5
+**Date:** 2026-04-06
+
+**Decision:** All audio nodes were pre-wired in Session 1.5 SFX change. 
+This entry confirms streams are now assigned.
+
+**SFX (AudioStreamPlayer nodes in game.tscn)**
+- `SpellHitSFX` — spell_hit.wav assigned, plays on spell hit signal
+- `PlayerHurtSFX` — hurt.wav assigned, plays on hp_changed decrease
+- `EnemyDeathSFX` — popenemydeath.wav assigned, plays on enemy died signal
+- All SFX as .wav format
+
+**Background Music (AudioStreamPlayer in game.tscn)**
+- BGMusic — assigned mischeifaudop.wav .wav, autoplay on, loop on
+
+**File locations**
+res://assets/audio/sfx/spell_hit.wav
+res://assets/audio/sfx/hurt.wav
+res://assets/audio/sfx/popenemydeath.wav
+res://assets/audio/music/mischeifaudop.wav
+
+**Notes:**
+- SFX use .wav (low latency, better for short one-shots)
+- Music uses .ogg (compressed, better for looping tracks)
+- No AudioBus mixing yet — all playing on Master bus. 
+  Separate SFX/Music buses come in Session 4.5 audio pass.
