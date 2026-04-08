@@ -60,7 +60,7 @@ func _physics_process(_delta: float) -> void:
 	var vp := get_viewport().get_visible_rect().size
 	position = position.clamp(
 		clamp_margin,
-		Vector2(vp.x - clamp_margin.x, vp.y * 0.70 - clamp_margin.y)
+		Vector2(vp.x - clamp_margin.x, vp.y * 0.78 - clamp_margin.y)
 	)
 
 	if move_input != Vector2.ZERO:
@@ -69,7 +69,7 @@ func _physics_process(_delta: float) -> void:
 
 func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 	if event.pressed:
-		if active_touch_index == -1 and event.position.y >= get_viewport().get_visible_rect().size.y * 0.90 and event.position.x > get_viewport().get_visible_rect().size.x * 0.10 and event.position.x < get_viewport().get_visible_rect().size.x * 0.90:
+		if active_touch_index == -1 and event.position.y >= get_viewport().get_visible_rect().size.y * 0.80 and event.position.x > get_viewport().get_visible_rect().size.x * 0.10 and event.position.x < get_viewport().get_visible_rect().size.x * 0.90:
 			active_touch_index = event.index
 			touchpad_center = event.position
 			_update_touchpad(event.position)

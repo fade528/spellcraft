@@ -1,21 +1,27 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene format=3 uid="uid://bg2xamo7v43yy"]
 
-[ext_resource type="Script" path="res://scripts/spell_projectile.gd" id="1_i4bqg"]
+[ext_resource type="Script" uid="uid://ce1dru21uom2d" path="res://scripts/spell_projectile.gd" id="1_i4bqg"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_h7gja"]
 radius = 12.0
 
-[node name="SpellProjectile" type="Area2D"]
-script = ExtResource("1_i4bqg")
+[node name="SpellProjectile" type="Area2D" unique_id=397396952]
 collision_layer = 16
 collision_mask = 8
+script = ExtResource("1_i4bqg")
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1061445388]
 shape = SubResource("CircleShape2D_h7gja")
 
-[node name="ProjectileVisual" type="ColorRect" parent="."]
+[node name="ProjectileVisual" type="ColorRect" parent="." unique_id=1672837110]
 offset_left = -6.0
 offset_top = -18.0
 offset_right = 6.0
 offset_bottom = 18.0
 color = Color(0.49, 0.85, 1, 1)
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=1153890744]
+offset_left = -8.0
+offset_top = -8.0
+offset_right = 8.0
+offset_bottom = 8.0

@@ -257,8 +257,8 @@ with our architecture decisions:
 | 1.5 — Alpha Polish | ✅ Complete | Juice pass, audio, APK tested on device |
 | 2.1 — Spell Combos | ✅ Complete | CSV system, 3 autoloads, Fire+Fire+Fire verified, DoT and AoE working |
 | 2.2 — Tome + Crafting UI | ✅ Complete | TomeManager, PageData, CraftingUI, PageFlipWidget, ControlStrip, JSON save, input zones |
-| 2.3 — Enemy Variants | ✅ Complete | Shooter + Tank, all status effects, weighted spawner, summon trail/HP/attack/recharge, crit pop, UI layout |
-| 2.4 — Element Drops | ⬜ Pending | |
+| 2.3 — Enemy Variants | ✅ Complete | Shooter + Tank, all status effects, weighted spawner, summon trail/HP/attack/recharge, crit pop, UI layout, bugfix for Summon hit radius, projectile invun, contact logic | 
+| 2.4 — Element Drops | ⬜ Pending | | also reminder to add a summon hp bar
 | 2.5 — Spell Slots | ⬜ Pending | |
 | 3.1 — Boss State Machine | ⬜ Pending | |
 | 3.2 — First Boss | ⬜ Pending | |

@@ -1,20 +1,20 @@
 extends Node
 
 const PROJECTILE_SCENE = preload("res://scenes/spell_projectile.tscn")
+const TRAIL_RECORD_DIST: float = 8.0
+const TRAIL_FOLLOW_DIST: float = 60.0
 
 var active_summon: Node2D = null
 var _summon_data: Dictionary = {}
 var _player_ref: Node2D = null
 var _recharge_timer: float = 0.0
-var _recharge_duration: float = 60.0
 var _current_element: String = ""
 var _summon_hp: float = 30.0
 var _attack_spell = null
 var _attack_cooldown: float = 3.0
 var _attack_timer_elapsed: float = 0.0
 var _trail_positions: Array[Vector2] = []
-const TRAIL_RECORD_DIST: float = 8.0
-const TRAIL_FOLLOW_DIST: float = 60.0
+var _summon_invincible: bool = false
 
 
 func initialize(player: Node2D) -> void:
@@ -42,6 +42,17 @@ func spawn_summon(element: String) -> void:
 	placeholder.position = Vector2(-15, -15)
 	summon_root.add_child(placeholder)
 
+	var hurtbox := Area2D.new()
+	hurtbox.collision_layer = 6
+	hurtbox.collision_mask = 0
+	var shape := CollisionShape2D.new()
+	var circle := CircleShape2D.new()
+	circle.radius = 20.0
+	shape.shape = circle
+	hurtbox.add_child(shape)
+	summon_root.add_child(hurtbox)
+	hurtbox.area_entered.connect(_on_summon_hit)
+
 	active_summon = summon_root
 
 	var current_scene: Node = get_tree().current_scene
@@ -51,25 +62,17 @@ func spawn_summon(element: String) -> void:
 			summon_root.global_position = _player_ref.global_position + Vector2(30, 0)
 		_current_element = element
 		_attack_timer_elapsed = 0.0
+		_summon_invincible = false
 		_trail_positions.clear()
 		if _player_ref != null and is_instance_valid(_player_ref):
-			_trail_positions.clear()
 			for i in range(20):
 				_trail_positions.append(_player_ref.global_position)
+
 		var hp_val = _summon_data.get("hp", 30.0)
 		if hp_val is String:
 			hp_val = hp_val.to_float() if hp_val.is_valid_float() else 30.0
 		_summon_hp = float(hp_val)
 		summon_root.add_to_group("summon")
-		var hurtbox: Area2D = Area2D.new()
-		hurtbox.set_collision_layer_value(4, true)
-		var cshape: CollisionShape2D = CollisionShape2D.new()
-		var circle: CircleShape2D = CircleShape2D.new()
-		circle.radius = 20.0
-		cshape.shape = circle
-		hurtbox.add_child(cshape)
-		summon_root.add_child(hurtbox)
-		hurtbox.body_entered.connect(_on_summon_body_entered)
 
 
 func set_attack_spell(spell) -> void:
@@ -78,14 +81,14 @@ func set_attack_spell(spell) -> void:
 		_attack_cooldown = float(spell.cooldown)
 
 
-func _on_summon_body_entered(body: Node) -> void:
-	if not is_instance_valid(body):
-		return
-	if not body.get_collision_layer_value(2):
+func _on_summon_hit(area: Area2D) -> void:
+	if _summon_invincible:
 		return
 	_summon_hp -= 5.0
+	_summon_invincible = true
+	_recharge_timer = 1.0
 	if _summon_hp <= 0.0:
-		despawn_summon()
+		call_deferred("despawn_summon")
 
 
 func _process(delta: float) -> void:
@@ -96,6 +99,7 @@ func _process(delta: float) -> void:
 				_recharge_timer = 0.0
 				if _current_element != "":
 					spawn_summon(_current_element)
+
 	if active_summon != null and is_instance_valid(active_summon):
 		if _player_ref != null and is_instance_valid(_player_ref):
 			var player_pos: Vector2 = _player_ref.global_position
@@ -104,7 +108,7 @@ func _process(delta: float) -> void:
 				_trail_positions.push_front(player_pos)
 				if _trail_positions.size() > 200:
 					_trail_positions.pop_back()
-			
+
 			var accumulated: float = 0.0
 			var follow_target: Vector2 = _trail_positions[_trail_positions.size() - 1]
 			for i in range(_trail_positions.size() - 1):
@@ -113,10 +117,28 @@ func _process(delta: float) -> void:
 				if accumulated >= TRAIL_FOLLOW_DIST:
 					follow_target = _trail_positions[i + 1]
 					break
-			
+
 			active_summon.global_position = active_summon.global_position.move_toward(
 				follow_target, 200.0 * delta
 			)
+
+		if not _summon_invincible:
+			for enemy in get_tree().get_nodes_in_group("enemies"):
+				if not is_instance_valid(enemy):
+					continue
+				var dist: float = active_summon.global_position.distance_to(
+					enemy.global_position)
+				if dist <= 300.0:
+					_summon_invincible = true
+					_summon_hp -= 5.0
+					var t := get_tree().create_timer(1.0)
+					t.timeout.connect(func() -> void:
+						_summon_invincible = false
+					)
+					if _summon_hp <= 0.0:
+						call_deferred("despawn_summon")
+					break
+
 		_attack_timer_elapsed += delta
 		if _attack_timer_elapsed >= _attack_cooldown:
 			_attack_timer_elapsed = 0.0
@@ -157,6 +179,7 @@ func despawn_summon() -> void:
 	if active_summon != null and is_instance_valid(active_summon):
 		active_summon.queue_free()
 	active_summon = null
+
 	var recharge = _summon_data.get("cd", 60.0)
 	if recharge is String:
 		recharge = recharge.to_float() if recharge.is_valid_float() else 60.0

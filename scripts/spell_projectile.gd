@@ -46,11 +46,22 @@ func setup_from_spell(
 
 
 func _on_area_entered(area: Area2D) -> void:
+	if area.get_collision_layer_value(3):
+		var pm = get_node_or_null("/root/ProgressionManager")
+		if pm and pm.has_method("take_damage"):
+			pm.take_damage(damage)
+		queue_free()
+		return
+
 	if not area.get_collision_layer_value(4):
 		return
 
 	var target := area.get_parent()
-	if target != null and target.has_method("take_damage"):
+	if target == null:
+		return
+	if has_meta("ignore_node") and get_meta("ignore_node") == target:
+		return
+	if target.has_method("take_damage"):
 		target.take_damage(damage)
 		_apply_on_hit_effects(target)
 		hit.emit(target, damage)

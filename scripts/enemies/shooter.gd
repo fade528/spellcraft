@@ -7,7 +7,7 @@ signal died
 @export var max_hp: float = 15.0
 @export var contact_damage: float = 8.0
 @export var fire_rate: float = 3.0
-@export var fire_range: float = 400.0
+@export var fire_range: float = 1920.0
 @export var projectile_speed: float = 550.0
 @export var crit_chance: float = 0.20
 @export var crit_multiplier: float = 2.5
@@ -138,20 +138,17 @@ func _physics_process(delta: float) -> void:
 func _try_fire() -> void:
 	if player_ref == null or not is_instance_valid(player_ref):
 		return
-	if player_ref.global_position.y >= 1536.0:
-		return
-
 	var dir := (player_ref.global_position - global_position).normalized()
-	dir.y = min(dir.y, 0.0)
-	if dir == Vector2.ZERO:
-		dir = Vector2.UP
-	dir = dir.normalized()
-
 	var proj = PROJECTILE_SCENE.instantiate()
+	var vis := ColorRect.new()
+	vis.size = Vector2(12, 12)
+	vis.position = Vector2(-6, -6)
+	vis.color = Color(1.0, 0.3, 1.0)
+	proj.add_child(vis)
 	proj.set_collision_layer_value(5, true)
-	proj.set_collision_mask_value(4, true)
+	proj.collision_mask = 3 | (1 << 5)
+	proj.set_collision_mask_value(4, false)
 	proj.setup(global_position, dir, contact_damage, projectile_speed)
-
 	var container = get_tree().get_first_node_in_group("projectile_container")
 	if container == null:
 		container = get_tree().current_scene
