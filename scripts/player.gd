@@ -7,7 +7,7 @@ const SCREEN_SIZE := Vector2(1080.0, 1920.0)
 const TOUCHPAD_RADIUS := 110.0
 const TOUCHPAD_DEADZONE := 12.0
 const TOUCHPAD_ZONE_RATIO := 0.65
-const RESPAWN_POSITION := Vector2(540.0, 1400.0)
+const RESPAWN_POSITION := Vector2(540.0, 1200.0)
 
 @onready var collision_shape: CollisionShape2D = $CollisionShape2D
 @onready var player_sprite: Sprite2D = $PlayerSprite
@@ -35,6 +35,16 @@ func _ready() -> void:
 	_apply_facing_rotation()
 	_set_touchpad_visible(false)
 	iframe_timer.timeout.connect(_on_iframe_timer_timeout)
+	var sm = get_node_or_null("/root/SummonManager")
+	if sm:
+		sm.initialize(self)
+		var summon_element: String = "fire"
+		var tm = get_node_or_null("/root/TomeManager")
+		if tm != null and tm.has_method("get_active_page"):
+			var active_page = tm.get_active_page()
+			if active_page != null and "summon_element" in active_page:
+				summon_element = String(active_page.summon_element)
+		sm.spawn_summon(summon_element)
 
 
 func _input(event: InputEvent) -> void:
@@ -50,7 +60,7 @@ func _physics_process(_delta: float) -> void:
 	var vp := get_viewport().get_visible_rect().size
 	position = position.clamp(
 		clamp_margin,
-		Vector2(vp.x - clamp_margin.x, vp.y * 0.80 - clamp_margin.y)
+		Vector2(vp.x - clamp_margin.x, vp.y * 0.70 - clamp_margin.y)
 	)
 
 	if move_input != Vector2.ZERO:
@@ -59,7 +69,7 @@ func _physics_process(_delta: float) -> void:
 
 func _handle_screen_touch(event: InputEventScreenTouch) -> void:
 	if event.pressed:
-		if active_touch_index == -1 and event.position.y >= get_viewport().get_visible_rect().size.y * 0.80 and event.position.x > get_viewport().get_visible_rect().size.x * 0.10 and event.position.x < get_viewport().get_visible_rect().size.x * 0.90:
+		if active_touch_index == -1 and event.position.y >= get_viewport().get_visible_rect().size.y * 0.90 and event.position.x > get_viewport().get_visible_rect().size.x * 0.10 and event.position.x < get_viewport().get_visible_rect().size.x * 0.90:
 			active_touch_index = event.index
 			touchpad_center = event.position
 			_update_touchpad(event.position)

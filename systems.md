@@ -465,3 +465,142 @@ Right 90-100% → flip gesture trigger
 - Above strip: HP bar + lives (move from top in future session)
 - Above strip: 4 action buttons (Session 4.x)
 - Bottom 20%: control strip (built this session)
+
+
+---
+
+### Enemy Variants — Shooter + Tank (Session 2.3)
+**Date:** 2026-04-08
+**Decision:** Two new standalone enemy scripts (not extending enemy.gd). All three enemy types carry a full copy of status effect methods. No base class — duplication preferred over inheritance complexity at this stage.
+
+**Shooter:**
+- Drifts down to random patrol Y (200–900px), then patrols left/right at patrol_speed
+- Fires spell_projectile.tscn at player every fire_rate seconds within fire_range (400px)
+- Projectile direction clamped: `dir.y = min(dir.y, 0.0)` — never fires into control strip
+- Skips fire if player is in control strip zone (player.y >= 1536)
+- Hurtbox Area2D created in code (layer 4, no mask) — spell_projectile detects it
+- Contact Area2D (no layer, mask 3) deals contact_damage via ProgressionManager
+
+**Tank:**
+- 100 HP, move_speed 60, chase_distance 600, contact_damage 25
+- Identical hurtbox/contact setup to Shooter
+- Always chasing (600px chase distance covers full screen)
+
+**Collision pattern (all enemy types):**
+- Root CharacterBody2D: layer 2, no mask
+- Hurtbox Area2D: layer 4, no mask (projectile detects us, we don't detect projectile)
+- Contact Area2D: no layer, mask 3 (detect player hurtbox, deal damage to ProgressionManager)
+- No CollisionShape2D on root node — physics body shape not needed
+
+**Known issue:** `queue_free()` called from `take_damage()` inside a physics callback triggers a warning. Fix: use `call_deferred("queue_free")` in death path. Not yet applied.
+
+**Files:**
+```
+res://scripts/enemies/shooter.gd
+res://scripts/enemies/tank.gd
+res://scenes/enemies/shooter.tscn
+res://scenes/enemies/tank.tscn
+```
+
+---
+
+### Weighted Enemy Spawner (Session 2.3)
+**Date:** 2026-04-08
+**Decision:** EnemySpawner uses weight-based random selection across three enemy types. Null scene exports are skipped — this allows gradual introduction of enemy types without code changes.
+
+**Implementation:**
+```gdscript
+var pool: Array = []
+if chaser_scene != null: pool.append({"scene": chaser_scene, "weight": chaser_weight})
+# ... then weighted random walk
+```
+
+**Current defaults:** chaser 0.6 / shooter 0.25 / tank 0.15 — tunable in inspector.
+
+**Note:** `enemy_speed` export only applies to the Chaser. Shooter and Tank have their own exported speed defaults.
+
+---
+
+### Status Effects on Enemies (Session 2.3)
+**Date:** 2026-04-08
+**Decision:** All status methods implemented on all three enemy types. Timer-based pattern consistent with apply_burn. Key implementation notes:
+
+- `apply_slow`: stores `_original_speed` before first application, guard with `_is_slowed` bool. Timer restart extends duration without stacking multiplier.
+- `apply_stagger`: sets `_is_staggered = true`, physics_process returns early. Uses `_start_stagger_timer()` helper with meta for crit restore.
+- `apply_brittle`: requires `_is_chilled == true`, reuses stagger timer, multiplies crit_multiplier and restores on timeout via stored meta.
+- `apply_chain`: iterates "enemies" group, sorts by distance, bounces `_last_chain_damage` to nearest N. No recursion. `_last_chain_damage` set in `take_damage()`.
+- `apply_blind`: sets `_blind_direction` randomly every 0.5s via `_blind_wander_timer` float in `_process()`. Physics process uses `_blind_direction` instead of toward-player.
+- `apply_pushback`: single-frame velocity impulse away from player. `distance / 0.3` = velocity magnitude.
+- `execute`: blocked if `is_boss == true`. Calls `take_damage(current_hp * 10.0)`.
+- `apply_wet` / `apply_chill`: set bool flags, one-shot timer clears them.
+- `apply_corruption`: identical to burn, separate timer + vars.
+- `get_incoming_multiplier(attacker_element)`: wet + thunder = 1.5x. Future hook for Session 3.x.
+
+**Variant inference fix:** `min()` on two ints returns Variant in strict mode. Use `mini()` instead:
+```gdscript
+var remaining_bounces: int = mini(bounce_count, nearby_enemies.size())
+```
+
+---
+
+### Full SummonManager AI (Session 2.3)
+**Date:** 2026-04-08
+**Decision:** Summon follows player via trail path history, not position offset. Attacks nearest enemy independently on its own timer synced to slot 1 cooldown. HP + auto-recharge implemented.
+
+**Trail follow system:**
+- Records player global_position into `_trail_positions` array whenever player moves >= 8px (TRAIL_RECORD_DIST)
+- Finds point 60px (TRAIL_FOLLOW_DIST) behind along the trail by accumulating segment lengths
+- Summon `move_toward()` that trail point at 200px/s
+- Array capped at 200 entries. Cleared and pre-filled with player position on spawn to prevent top-left drift.
+
+**Attack system:**
+- `set_attack_spell(spell)` called by SpellCaster after every `refresh_spell()` — keeps summon in sync with active page slot 0
+- Finds nearest enemy within 350px, fires spell_projectile.tscn toward it
+- Damage = `spell.dmgmult_chain * 10.0` (base 10 weapon dmg for summon)
+- Projectile added to "projectile_container" group node (Projectiles node in game.tscn)
+
+**HP/recharge:**
+- Summon HP from CSV `hp` field. Takes 5 damage per enemy body_entered on hurtbox Area2D (layer 4, mask 2)
+- `despawn_summon()` sets `_recharge_timer` from CSV `cd` field
+- Auto-respawn in `_process()`: when `_recharge_timer` ticks to 0 and `_current_element != ""`, calls `spawn_summon(_current_element)`
+
+**Spawn fix:** `add_child.call_deferred(summon_root)` required — `spawn_summon()` is called during player `_ready()` when scene tree is still setting up children. Direct `add_child()` fails silently.
+
+**Files:**
+```
+res://scripts/managers/summon_manager.gd
+```
+
+---
+
+### Crit Number Pop Effect (Session 2.3)
+**Date:** 2026-04-08
+**Decision:** Crit damage numbers pop out and hold in place rather than drifting upward like normal hits. This makes crits visually distinct.
+
+**Normal hits:** float upward 40px, fade over 0.5s.
+**Crits:** gold colour (1.0, 0.85, 0.1), pop from 52→68px then settle at 56px, hold 0.25s, fade in place. No upward movement.
+
+Applied identically to enemy.gd, shooter.gd, tank.gd.
+
+---
+
+### UI Layout Overhaul (Session 2.3)
+**Date:** 2026-04-08
+**Decision:** HP bar and lives moved from HUD CanvasLayer into ControlStrip. 4 action button placeholders added above the strip. Boss bar reserved at top.
+
+**Layout (all code-driven in control_strip.gd):**
+- `StripPanel` (y=1536, h=384): HP bar at y=12, 4 action buttons replaced by labels, page/CD/summon labels at y=60/112/160
+- `ActionButtonLayer` (Control, y=1400): 4 ColorRect buttons spanning full width (248px each, 20px margin, 16px gap), sit above strip in game canvas area
+- `BossBarContainer` (Control, y=0): ProgressBar + Label, visible=false until Session 3.x
+
+**Old HUD:** `MarginContainer` inside HUD set to `visible = false`. HUD node still exists — do not delete.
+
+**ControlStrip public API:**
+```gdscript
+ControlStrip.update_hp(current: float, maximum: float) -> void
+ControlStrip.update_lives(count: int) -> void
+```
+
+Auto-wired to ProgressionManager signals `hp_changed` and `lives_changed` in `_ready()`.
+
+**Note:** Player clamp remains at 80% (`vp.y * 0.80`). Touchpad activation remains at 80%. Players can currently walk into the action button zone — address in a future session if needed.

@@ -51,6 +51,9 @@ func _recompose_spell() -> void:
 		target_type
 	)
 	_configure_cooldown_timer()
+	var sm = get_node_or_null("/root/SummonManager")
+	if sm:
+		sm.set_attack_spell(spell_data)
 
 
 func refresh_spell(

@@ -33,7 +33,7 @@ mouse_filter = 2
 [node name="Camera2D" type="Camera2D" parent="." unique_id=196335121]
 position = Vector2(540, 960)
 
-[node name="Projectiles" type="Node2D" parent="." unique_id=518292413 groups=["projectiles"]]
+[node name="Projectiles" type="Node2D" parent="." unique_id=518292413 groups=["projectile_container", "projectiles"]]
 
 [node name="SpellHitSFX" type="AudioStreamPlayer" parent="." unique_id=1916401224]
 stream = ExtResource("4_p57ef")

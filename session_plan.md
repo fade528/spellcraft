@@ -24,7 +24,6 @@ Relevant existing code: [paste if applicable]"
 Environment configured:
 - Godot 4.6.2, Mobile renderer, 1080x1920 portrait
 - VS Code + godot-tools + Codex
-- Claude Code installed (auth pending Max subscription)
 - Git + GitHub at github.com/fade528/spellcraft
 - All MD files in project root
 
@@ -62,13 +61,12 @@ Verified: Fire+Fire+Fire total_cd=3.0, dmgmult_chain=1.2, burn ticks and AoE wor
 ---
 
 ### Session 2.2 — Tome, Pages + Crafting UI
-
 **Status: ✅ Complete**
 
 Key decisions:
 - TomeManager autoload, max 8 pages, JSON persistence
 - PageData resource: slots, summon_element, ult1, ult2
-- CraftingUI: pauses game, Escape to open, Edit→Craft rename
+- CraftingUI: pauses game, Escape to open
 - Set Active bypasses flip cooldown gate directly
 - child.free() not queue_free() to prevent duplicate buttons
 - PageFlipWidget: edge swipe gesture (0-10%, 90-100% of strip)
@@ -82,45 +80,23 @@ Key decisions:
 
 ---
 
-### Session 2.3 — Enemy Variants + Status Effects
-**Status: ⬜ Pending**
+### Session 2.3 — Enemy Variants + Status Effects + Summon AI
+**Status: ✅ Complete**
 
-**Note before starting:** player.gd uses _input() not _unhandled_input(). Enemy status methods are guarded by has_method(). Control strip bottom 20% must not be obstructed by enemy projectiles or effects. Paste current scene tree and enemy.gd + summon_manager.gd when opening.
-Read context.md and systems.md first. Build Shooter
-and Tank enemy types. Also implement all pending
-status methods so spell effects land correctly.
-Also implement SummonManager fully.
-Existing enemy has: take_damage(), apply_burn()
-Add to ALL enemy types:
-
-apply_slow(amount, duration)
-apply_stagger(chance, duration)
-apply_brittle(freeze_duration, dmg_mult) — requires chilled
-apply_chain(targets) — bounce to nearby enemies
-apply_pushback(distance)
-apply_blind(duration)
-execute(chance) — instant kill, no bosses
-get_element() -> String
-apply_wet(), apply_corruption(), apply_chill()
-
-SummonManager full implementation:
-
-Summon follows player at 50px offset
-Summon mimics player slot 1 spell on its own attack timer
-Summon has HP, takes damage, dies and starts recharge timer
-Recharge times from CSV: most = 60s, Thunder = 20s
-
-Shooter enemy:
-
-Fires projectile at player every 3s
-Range 400px, disengages beyond range
-Projectile uses existing spell_projectile scene
-
-Tank enemy:
-
-5x base HP, 0.4x speed
-Contact damage 25
-Same hurtbox/layer setup as Chaser
+Key decisions:
+- Shooter: patrols Y 200-900px, fires every 3s within 400px, projectile clamped (dir.y <= 0)
+- Tank: 100 HP, speed 60, chase 600px, contact 25 damage
+- Weighted spawner: chaser/shooter/tank weights, null scenes skipped
+- All status effects on all three enemy types (slow, stagger, brittle, chain, pushback, blind, execute, wet, corruption, chill)
+- `mini()` not `min()` for int comparisons — avoids Variant inference errors
+- `call_deferred("queue_free")` needed in physics callbacks (not yet applied — known deferred fix)
+- Summon trail: path-history follow (TRAIL_RECORD_DIST=8px, TRAIL_FOLLOW_DIST=60px, move_toward 200px/s)
+- Summon attack: nearest enemy 350px, dmgmult_chain*10 damage, synced to slot 1 via set_attack_spell()
+- Summon HP from CSV, 5 damage per enemy contact, auto-respawn on recharge timeout
+- spawn_summon uses call_deferred(add_child) — called during _ready() tree setup
+- Crit numbers: gold pop effect (52→68→56px, hold, fade) vs normal upward drift
+- UI: HP/lives in ControlStrip, 4 action buttons at y=1400 (above strip), boss bar hidden
+- Old HUD MarginContainer visible=false
 
 ---
 
@@ -180,8 +156,6 @@ Relevant code: [paste progression_manager.gd, spell_caster.gd]
 ### Session 3.3 — Boss Metrics System ⬜
 ### Session 3.4 — Boss Retry Loop ⬜
 
-(Prompts unchanged from original — update when entering Phase 3)
-
 ---
 
 ## Phase 4 — Progression + Polish
@@ -208,9 +182,6 @@ Robe = +Damage %
 Gloves = +Cast speed
 Boots = +Move speed
 Weapon = +Base damage (feeds item_base_dmg in SpellCaster)
-
-Secondary stats per slot defined in equipment.csv (Phase 4).
-Items drop exclusively from boss kills, one item per kill.
 
 Godot 4 GDScript.
 Current scene tree: [paste]
@@ -263,16 +234,6 @@ Convert into prioritised technical tasks.
 Flag anything that requires architecture changes.
 ```
 
-### Performance Issue
-```
-Read context.md and systems.md first.
-Performance issue on [device].
-Current FPS: [X], target 60.
-Godot profiler shows: [paste]
-Relevant scene: [paste scene tree]
-Godot 4 GDScript.
-```
-
 ### Code Review
 ```
 Read context.md and systems.md first.
@@ -295,8 +256,8 @@ with our architecture decisions:
 | 1.4 — Life System | ✅ Complete | HP bar, 3 lives, game over, restart |
 | 1.5 — Alpha Polish | ✅ Complete | Juice pass, audio, APK tested on device |
 | 2.1 — Spell Combos | ✅ Complete | CSV system, 3 autoloads, Fire+Fire+Fire verified, DoT and AoE working |
-| 2.2 — Tome + Crafting UI | ✅ Complete | TomeManager, PageData, CraftingUI pause menu, PageFlipWidget edge-swipe, ControlStrip, persistent JSON save, rename/delete/set active, input zones 0-10/10-90/90-100% |
-| 2.3 — Enemy Variants | ⬜ Pending | Includes all status effects + full summon AI |
+| 2.2 — Tome + Crafting UI | ✅ Complete | TomeManager, PageData, CraftingUI, PageFlipWidget, ControlStrip, JSON save, input zones |
+| 2.3 — Enemy Variants | ✅ Complete | Shooter + Tank, all status effects, weighted spawner, summon trail/HP/attack/recharge, crit pop, UI layout |
 | 2.4 — Element Drops | ⬜ Pending | |
 | 2.5 — Spell Slots | ⬜ Pending | |
 | 3.1 — Boss State Machine | ⬜ Pending | |
@@ -306,10 +267,10 @@ with our architecture decisions:
 | 4.1 — Level Progression | ⬜ Pending | |
 | 4.2 — Ultimate Ability | ⬜ Pending | |
 | 4.3 — Paragon Generator | ⬜ Pending | |
-| 4.4 — Item System | ⬜ Pending | New — hats, robes, gloves, boots, weapons |
+| 4.4 — Item System | ⬜ Pending | |
 | 4.5 — Art Pass | ⬜ Pending | |
 | 4.6 — Audio Pass | ⬜ Pending | |
-| 4.7 — Performance | ⬜ Pending | Renumbered from 4.6 |
+| 4.7 — Performance | ⬜ Pending | |
 | 5.1 — Google Play | ⬜ Pending | |
 | 5.2 — iOS App Store | ⬜ Pending | |
 | 5.3 — Post Launch | ⬜ Pending | |

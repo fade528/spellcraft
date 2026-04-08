@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://k73lwd7v7xtr"]
+
+[ext_resource type="Script" uid="uid://ct2sv2c8k0dsm" path="res://scripts/enemies/tank.gd" id="1_88x61"]
+
+[node name="Tank" type="CharacterBody2D" unique_id=612369381]
+script = ExtResource("1_88x61")

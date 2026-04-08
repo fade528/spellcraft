@@ -2,21 +2,29 @@ extends CharacterBody2D
 
 signal died
 
-@export var move_speed: float = 150.0
-@export var chase_distance: float = 300.0
-@export var max_hp: float = 20.0
+@export var move_speed: float = 60.0
+@export var patrol_speed: float = 40.0
+@export var max_hp: float = 15.0
+@export var contact_damage: float = 8.0
+@export var fire_rate: float = 3.0
+@export var fire_range: float = 400.0
+@export var projectile_speed: float = 550.0
 @export var crit_chance: float = 0.20
 @export var crit_multiplier: float = 2.5
 @export var element: String = "none"
 @export var is_boss: bool = false
 
 const DESPAWN_Y := 1980.0
-
-@onready var enemy_sprite: ColorRect = $EnemySprite
+const PROJECTILE_SCENE = preload("res://scenes/spell_projectile.tscn")
 
 var player_ref: Node2D
 var current_hp: float
 var hit_flash_tween: Tween
+var _patrol_y: float = 0.0
+var _patrol_reached: bool = false
+var _patrol_dir: float = 1.0
+var _fire_timer: float = 0.0
+var _sprite: ColorRect
 var _burn_timer: Timer = null
 var _burn_damage: float = 0.0
 var _burn_ticks_remaining: int = 0
@@ -44,34 +52,110 @@ var _chill_timer: Timer = null
 func _ready() -> void:
 	add_to_group("enemies")
 	player_ref = get_tree().get_first_node_in_group("player") as Node2D
-	enemy_sprite.color = Color(0.93, 0.26, 0.35, 1.0)
+	set_collision_layer_value(1, false)
 	set_collision_layer_value(2, true)
 	set_collision_mask_value(1, false)
 	set_collision_mask_value(2, false)
 	current_hp = max_hp
+	_patrol_y = randf_range(200.0, 900.0)
+
+	_sprite = ColorRect.new()
+	_sprite.color = Color(0.8, 0.2, 0.8, 1.0)
+	_sprite.position = Vector2(-15, -20)
+	_sprite.size = Vector2(30, 40)
+	add_child(_sprite)
+
+	var hurtbox := Area2D.new()
+	hurtbox.set_collision_layer_value(1, false)
+	hurtbox.set_collision_layer_value(4, true)
+	hurtbox.set_collision_mask_value(1, false)
+	var shape := CollisionShape2D.new()
+	var rect := RectangleShape2D.new()
+	rect.size = Vector2(30, 40)
+	shape.shape = rect
+	hurtbox.add_child(shape)
+	add_child(hurtbox)
+	hurtbox.area_entered.connect(_on_hurtbox_area_entered)
+
+	var contact := Area2D.new()
+	contact.set_collision_layer_value(1, false)
+	contact.set_collision_mask_value(1, false)
+	contact.set_collision_mask_value(3, true)
+	var cshape := CollisionShape2D.new()
+	var crect := RectangleShape2D.new()
+	crect.size = Vector2(30, 40)
+	cshape.shape = crect
+	contact.add_child(cshape)
+	add_child(contact)
+	contact.area_entered.connect(_on_contact_area_entered)
 
 
-func _physics_process(_delta: float) -> void:
+func _on_hurtbox_area_entered(_area: Area2D) -> void:
+	pass
+
+
+func _on_contact_area_entered(area: Area2D) -> void:
+	if area.get_collision_layer_value(3):
+		var pm = get_node_or_null("/root/ProgressionManager")
+		if pm:
+			pm.take_damage(contact_damage)
+
+
+func _physics_process(delta: float) -> void:
 	if _is_staggered:
 		return
 
 	if player_ref == null or not is_instance_valid(player_ref):
 		player_ref = get_tree().get_first_node_in_group("player") as Node2D
 
-	var move_direction := Vector2.DOWN
+	if not _patrol_reached:
+		velocity = Vector2(0.0, move_speed)
+		if global_position.y >= _patrol_y:
+			_patrol_reached = true
+			velocity.y = 0.0
+	else:
+		velocity.x = _patrol_dir * patrol_speed
+		if global_position.x <= 80.0:
+			_patrol_dir = 1.0
+		if global_position.x >= 1000.0:
+			_patrol_dir = -1.0
+		velocity.y = 0.0
 
-	if _is_blinded:
-		move_direction = _blind_direction
-	elif player_ref != null:
-		var to_player := player_ref.global_position - global_position
-		if to_player.length() <= chase_distance:
-			move_direction = to_player.normalized()
-
-	velocity = move_direction * move_speed
 	move_and_slide()
 
 	if global_position.y > DESPAWN_Y:
 		queue_free()
+
+	if player_ref != null and is_instance_valid(player_ref):
+		var dist := global_position.distance_to(player_ref.global_position)
+		if dist <= fire_range:
+			_fire_timer -= delta
+			if _fire_timer <= 0.0:
+				_fire_timer = fire_rate
+				_try_fire()
+
+
+func _try_fire() -> void:
+	if player_ref == null or not is_instance_valid(player_ref):
+		return
+	if player_ref.global_position.y >= 1536.0:
+		return
+
+	var dir := (player_ref.global_position - global_position).normalized()
+	dir.y = min(dir.y, 0.0)
+	if dir == Vector2.ZERO:
+		dir = Vector2.UP
+	dir = dir.normalized()
+
+	var proj = PROJECTILE_SCENE.instantiate()
+	proj.set_collision_layer_value(5, true)
+	proj.set_collision_mask_value(4, true)
+	proj.setup(global_position, dir, contact_damage, projectile_speed)
+
+	var container = get_tree().get_first_node_in_group("projectile_container")
+	if container == null:
+		container = get_tree().current_scene
+	container.add_child(proj)
 
 
 func _process(delta: float) -> void:
@@ -162,10 +246,10 @@ func _play_hit_flash() -> void:
 	if hit_flash_tween != null:
 		hit_flash_tween.kill()
 
-	var base_color := enemy_sprite.color
+	var base_color := _sprite.color
 	hit_flash_tween = create_tween()
-	hit_flash_tween.tween_property(enemy_sprite, "color", Color.WHITE, 0.05)
-	hit_flash_tween.tween_property(enemy_sprite, "color", base_color, 0.05)
+	hit_flash_tween.tween_property(_sprite, "color", Color.WHITE, 0.05)
+	hit_flash_tween.tween_property(_sprite, "color", base_color, 0.05)
 
 
 func _spawn_death_particles() -> void:
@@ -188,8 +272,8 @@ func _spawn_death_particles() -> void:
 	particles.gravity = Vector2.ZERO
 
 	var gradient := Gradient.new()
-	gradient.add_point(0.0, enemy_sprite.color)
-	gradient.add_point(1.0, Color(enemy_sprite.color.r, enemy_sprite.color.g, enemy_sprite.color.b, 0.0))
+	gradient.add_point(0.0, _sprite.color)
+	gradient.add_point(1.0, Color(_sprite.color.r, _sprite.color.g, _sprite.color.b, 0.0))
 	particles.color_ramp = gradient
 
 	parent_node.add_child(particles)
