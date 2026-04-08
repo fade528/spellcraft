@@ -1,7 +1,7 @@
 # Spellcraft Roguelite — Session Plan
 
 > Session management guide. Each session is a separate chat.
-> Always open every session with: "Read context.md first. [then your task]"
+> Always open every session with: "Read context.md and systems.md first. [then your task]"
 > For code sessions also include: current scene tree + relevant existing code
 > Always specify "Godot 4 GDScript" in every prompt.
 
@@ -10,7 +10,7 @@
 ## How to Start Every Session
 
 ```
-"Read context.md first. [task description]
+"Read context.md and systems.md first. [task description]
 Godot 4 GDScript.
 Current scene tree: [paste]
 Relevant existing code: [paste if applicable]"
@@ -31,274 +31,284 @@ Environment configured:
 ---
 
 ## Phase 1 — Alpha Build
-**Target: Movement + enemies + auto-cast spell. Placeholder art only.**
+**Status: ✅ Complete**
 
-### Session 1.1 — Player Scene
-**Status: ⏳ Next**
-```
-Read context.md first. Build Week 2 player scene —
-CharacterBody2D, touchpad movement, 8 direction
-facing, screen clamping, 1080x1920. Godot 4 GDScript.
-```
-**Delivers:** Player rectangle moves smoothly on canvas, stays in bounds
-
----
-
-### Session 1.2 — Enemy Spawning
-```
-Read context.md first. Build Week 3 enemy spawner —
-Chaser enemy, downward movement, repeating Timer,
-despawn at bottom edge, scrolling background.
-Godot 4 GDScript.
-```
-**Delivers:** Enemies scroll down, chaser follows player, background loops
-
----
-
-### Session 1.3 — Spell System
-```
-Read context.md first. Build Week 4 spell system —
-SpellData resource class, SpellProjectile Area2D,
-SpellCaster auto-aim and auto-fire on cooldown,
-nearest enemy targeting. Godot 4 GDScript.
-```
-**Delivers:** Player auto-fires toward nearest enemy, enemy takes damage and dies
-
----
-
-### Session 1.4 — Life System + HUD
-```
-Read context.md first. Build Week 5 life system —
-Player hurtbox Area2D, iframe system, contact damage
-on enemies, ProgressionManager with 3 lives,
-CanvasLayer HUD, game over state and restart.
-Godot 4 GDScript.
-```
-**Delivers:** Full game loop — spawn, fight, take damage, lose lives, game over, restart
-
----
-
-### Session 1.5 — Alpha Polish + APK
-```
-Read context.md first. Week 6 juice pass —
-hit flash on enemy damage, death particles,
-screen shake on player hit, placeholder SFX,
-background music loop, build APK for Android.
-Godot 4 GDScript.
-```
-**Delivers:** Playable APK in partner's hands for feel testing
+### Session 1.1 — Player Scene ✅
+### Session 1.2 — Enemy Spawning ✅
+### Session 1.3 — Spell System ✅
+### Session 1.4 — Life System + HUD ✅
+### Session 1.5 — Alpha Polish + APK ✅
 
 ---
 
 ## Phase 2 — Core Systems
-**Target: Spell crafting, enemy variants, element drops, progression**
 
 ### Session 2.1 — Spell Combo Architecture
-```
-Read context.md and systems.md first. Design and build
-the 4-part spell combination system —
-element + modifier + finisher + delivery,
-order matters, first 6-8 combos defined.
-Godot 4 GDScript.
-```
-**Delivers:** Working spell combo system, combos produce different projectile behaviours
+**Status: ✅ Complete**
+
+Key decisions:
+- Slot names: Elemental / Empowerment / Enchantment / Summon
+- All spell data in res://data/spell_elements.csv — Google Sheets only
+- Autoloads: PlayerInventory, SpellComposer, SummonManager
+- Damage formula: item_base_dmg x elemental_mult x weakness_mult x emp_mult x enc_mult
+- Holy/Dark fire on stop, not auto-cast
+- Summon slot independent, one active at a time
+- AoE excludes primary hit target
+- apply_burn on enemy with repeating Timer
+- Equipment slots stubbed in PlayerInventory
+
+Verified: Fire+Fire+Fire total_cd=3.0, dmgmult_chain=1.2, burn ticks and AoE working.
 
 ---
 
-### Session 2.2 — Crafting UI
+### Session 2.2 — Tome, Pages + Crafting UI
+**Status: ⏳ Next**
+
 ```
-Read context.md and systems.md first. Build the
-pause and crafting UI — spell slot display,
-element inventory panel, combo construction,
-free experimentation, no punishment on change.
+Read context.md and systems.md first. Build the Tome
+and Page system with integrated crafting UI.
+
+== TOME AND PAGE SYSTEM ==
+
+A Tome holds up to 10 Pages. Each Page is a complete
+saved build: 4 spell slots + 1 summon + 2 ultimates.
+
+Create TomeManager autoload at
+res://scripts/managers/tome_manager.gd.
+
+Inner class PageData:
+  var page_name: String = "Page 1"
+  var slots: Array[Dictionary] = []
+  # each slot dict: { elemental, empowerment,
+  #   enchantment, delivery, target }
+  var summon_element: String = "fire"
+  var ult1: String = ""
+  var ult2: String = ""
+
+TomeManager vars:
+  var pages: Array = []       # max 10 PageData
+  var active_page_index: int = 0
+  var _flip_cooldown: float = 0.0
+  var _can_flip: bool = true
+
+TomeManager methods:
+  func can_flip_page() -> bool
+    # true if _flip_cooldown <= 0.0
+    # AND SummonManager.is_recharged() == true
+
+  func flip_to_page(index: int) -> void
+    # guard: can_flip_page() must be true
+    # call refresh_spell() on each SpellCaster
+    # call SummonManager.spawn_summon()
+    # set _flip_cooldown = longest total_cd across
+    # all active SpellCasters
+
+  func _process(delta: float) -> void
+    # count down _flip_cooldown
+
+  func save_page(index: int, page: PageData) -> void
+  func get_page(index: int) -> PageData
+  func get_active_page() -> PageData
+  func add_page() -> void   # adds blank page if < 10
+
+Add to SummonManager:
+  func is_recharged() -> bool
+    # true if summon is alive OR recharge timer complete
+
+== CRAFTING UI ==
+
+Build a pause menu CanvasLayer with two views:
+
+VIEW 1 — TOME VIEW (default on pause):
+- Scrollable list of all pages (up to 10)
+- Each page shows its name + element summary
+- Tap page to select it
+- "Flip to this page" button — greyed with remaining
+  time shown if page flip is gated
+- "Edit page" opens View 2
+- "New page" creates blank page
+- Resume button
+
+VIEW 2 — PAGE EDITOR:
+- 4 spell slot rows (slot 1 active, 2-4 greyed if locked)
+- Each row has 4 pickers: Elemental / Empowerment /
+  Enchantment / Delivery
+- Tap any picker to open element or delivery selector
+- Summon picker row: tap to change summon element
+- Stats panel: total_cd, total_budget, dmgmult_chain
+  shown per active slot
+- "Save page" writes back to TomeManager
+- Back button returns to Tome View
+
+Start with 1 spell slot active (2-4 visible but locked).
+Elements: Fire, Ice, Earth, Thunder, Water, Holy, Dark.
+Deliveries: Bolt, Burst, Beam, Blast, Cleave,
+Missile, Wall, Utility.
+
+Key APIs:
+  SpellCaster.refresh_spell(elemental, empowerment,
+    enchantment, delivery, target)
+  SummonManager.spawn_summon(element)
+  SummonManager.is_recharged() -> bool
+  TomeManager.can_flip_page() -> bool
+  TomeManager.flip_to_page(index)
+
+Register TomeManager in Autoload after SummonManager.
+
 Godot 4 GDScript.
+Current scene tree: [paste]
+Relevant code: [paste spell_caster.gd,
+spell_composer.gd, summon_manager.gd]
 ```
-**Delivers:** Player can pause, view elements, construct spells, resume
+
+**Delivers:** Tome with 10 pages, page editor, mid-combat page flipping gated by spell CD and summon recharge
 
 ---
 
-### Session 2.3 — Enemy Variants
+### Session 2.3 — Enemy Variants + Status Effects
+**Status: ⬜ Pending**
+
 ```
 Read context.md and systems.md first. Build Shooter
-and Tank enemy types extending existing enemy
-architecture. Shooter fires projectiles at player,
-Tank has high HP and slow movement.
+and Tank enemy types. Also implement all pending
+status methods so spell effects land correctly.
+
+Existing enemy has: take_damage(), apply_burn()
+Add to ALL enemy types:
+- apply_slow(amount, duration)
+- apply_stagger(chance, duration)
+- apply_brittle(freeze_duration, dmg_mult) — requires chilled
+- apply_chain(targets) — bounce to nearby enemies
+- apply_pushback(distance)
+- apply_blind(duration)
+- execute(chance) — instant kill, no bosses
+- get_element() -> String
+- apply_wet(), apply_corruption(), apply_chill()
+
+Also implement SummonManager fully:
+- Summon follows player at 50px
+- Summon mimics player slot 1 spell on its attack timer
+- Summon takes damage and dies, recharges after cd
+
+Shooter: fires at player every 3s, range 400px.
+Tank: 5x HP, 0.4x speed, contact damage 25.
+
 Godot 4 GDScript.
+Current scene tree: [paste]
+Relevant code: [paste enemy.gd, summon_manager.gd]
 ```
-**Delivers:** Three enemy types — Chaser, Shooter, Tank
+
+**Delivers:** Three enemy types, all status effects functional, summon AI working
 
 ---
 
 ### Session 2.4 — Element Drop System
+**Status: ⬜ Pending**
+
 ```
 Read context.md and systems.md first. Build element
-drop system — enemies emit drop signal on death,
+drop system — enemies drop elements on death,
 ElementDrop scene spawns at position, player
-collects via Area2D overlap, updates inventory.
+collects via Area2D overlap, updates PlayerInventory.
+
+Each enemy has an exported element_drop: String.
+ElementDrop is a small coloured circle on Layer 6.
+Player pickup via Area2D overlap.
+Calls PlayerInventory.add_element(element).
+
 Godot 4 GDScript.
+Current scene tree: [paste]
+Relevant code: [paste enemy.gd, player_inventory.gd]
 ```
-**Delivers:** Enemies drop elements, player collects, inventory updates
+
+**Delivers:** Enemies drop elements, player collects, scaling multiplier increases
 
 ---
 
 ### Session 2.5 — Spell Slot Progression
+**Status: ⬜ Pending**
+
 ```
-Read context.md and systems.md first. Build level
-progression system — Levels 1-4 unlock additional
-spell slots on boss defeat, no stat inflation,
-ProgressionManager handles unlock logic.
+Read context.md and systems.md first. Build spell slot
+progression — ProgressionManager tracks level,
+beating a boss advances level, levels 1-4 each
+unlock one additional SpellCaster on the player.
+
+Level unlocks:
+Lv1 = 1 slot (default), Lv2 = 2, Lv3 = 3, Lv4 = 4
+Lv5 = Ultimate (Session 4.2), Lv6 = Ultimate upgrade
+
+SpellCaster nodes pre-built on player but disabled.
+ProgressionManager.advance_level() enables next one
+and signals crafting UI to show the new slot.
+
 Godot 4 GDScript.
+Current scene tree: [paste]
+Relevant code: [paste progression_manager.gd, spell_caster.gd]
 ```
+
 **Delivers:** Beating bosses unlocks spell slots 1 through 4
 
 ---
 
 ## Phase 3 — Boss System
-**Target: Full boss loop with metrics and retry**
 
-### Session 3.1 — Boss State Machine
-```
-Read context.md and systems.md first. Build boss
-state machine in GameManager — SCROLLING to
-BOSS_PREP transition, arena forms, scrolling stops,
-preparation phase allows relearn.
-Godot 4 GDScript.
-```
-**Delivers:** Clean state transition from scrolling phase to boss arena
+### Session 3.1 — Boss State Machine ⬜
+### Session 3.2 — First Boss Implementation ⬜
+### Session 3.3 — Boss Metrics System ⬜
+### Session 3.4 — Boss Retry Loop ⬜
 
----
-
-### Session 3.2 — First Boss Implementation
-```
-Read context.md and systems.md first. Implement
-first boss — 2-3 attack patterns, phase transition
-at 50% HP, health bar, death sequence,
-signals to GameManager. Godot 4 GDScript.
-```
-**Delivers:** Playable first boss with distinct attack phases
-
----
-
-### Session 3.3 — Boss Metrics System
-```
-Read context.md and systems.md first. Build boss
-death metrics screen — CombatManager tracks damage
-sources during fight, BossMetrics UI displays
-after death, damage by source, status uptime,
-build note. Godot 4 GDScript.
-```
-**Delivers:** Metrics screen shown after boss death with actionable data
-
----
-
-### Session 3.4 — Boss Retry Loop
-```
-Read context.md and systems.md first. Polish boss
-retry loop — relearn allowed before retry,
-boss resets cleanly, lives system integrated,
-metrics inform adjustment before next attempt.
-Godot 4 GDScript.
-```
-**Delivers:** Complete boss retry loop — die, review, adjust, retry
+(Prompts unchanged from original — update when entering Phase 3)
 
 ---
 
 ## Phase 4 — Progression + Polish
-**Target: Full level arc, ultimate, paragon, art, audio, performance**
 
-### Session 4.1 — Full Level Progression
+### Session 4.1 — Full Level Progression ⬜
+### Session 4.2 — Ultimate Ability ⬜
+### Session 4.3 — Paragon Generator ⬜
+
+### Session 4.4 — Item System
+**Status: ⬜ Pending**
+
 ```
-Read context.md and systems.md first. Build full
-level 1-6 progression — boss defeat triggers level
-advance, spell slots 1-4 unlock sequentially,
-level 5 unlocks ultimate, level 6 upgrades it.
+Read context.md and systems.md first. Build the item
+system — 5 equipment slots (hat, robe, gloves, boots,
+weapon), items drop from bosses only.
+
+Equipment slots already stubbed in PlayerInventory.
+Need: EquipmentData resource, item drop scene,
+pickup logic, equip logic, stat application.
+
+Slot primary stats:
+Hat = +Max HP
+Robe = +Damage %
+Gloves = +Cast speed
+Boots = +Move speed
+Weapon = +Base damage (feeds item_base_dmg in SpellCaster)
+
+Secondary stats per slot defined in equipment.csv (Phase 4).
+Items drop exclusively from boss kills, one item per kill.
+
 Godot 4 GDScript.
+Current scene tree: [paste]
+Relevant code: [paste player_inventory.gd, spell_caster.gd,
+progression_manager.gd]
 ```
 
----
+**Delivers:** Boss drops items, player equips them, stats apply
 
-### Session 4.2 — Ultimate Ability
-```
-Read context.md and systems.md first. Design and
-build ultimate ability — manual trigger button,
-Level 5 unlock, Level 6 upgrade path,
-fits existing spell combo philosophy.
-Godot 4 GDScript.
-```
-
----
-
-### Session 4.3 — Paragon Generator
-```
-Read context.md and systems.md first. Build paragon
-generator for Level 21+ — difficulty budget system,
-weighted random enemy selection, weighted boss pool,
-scaling values per paragon level.
-Godot 4 GDScript.
-```
-
----
-
-### Session 4.4 — Full Art Pass
-```
-Read context.md and systems.md first. Replace all
-placeholder rectangles with final sprites —
-player 8 directional spritesheet, boss animations,
-mob sprite sheets, UI elements.
-Godot 4 GDScript.
-```
-
----
-
-### Session 4.5 — Audio Pass
-```
-Read context.md and systems.md first. Implement
-full audio — background music per zone using
-AudioStreamPlayer, spell SFX, hit impacts,
-boss music, UI sounds, AudioBus mixing.
-Godot 4 GDScript.
-```
-
----
-
-### Session 4.6 — Performance + Mobile Polish
-```
-Read context.md and systems.md first. Mobile
-optimisation pass — draw call reduction, particle
-limits on low end devices, shader simplification,
-APK size reduction, test on low end Android.
-Godot 4 GDScript.
-```
+### Session 4.5 — Full Art Pass ⬜
+### Session 4.6 — Audio Pass ⬜
+### Session 4.7 — Performance + Mobile Polish ⬜
 
 ---
 
 ## Phase 5 — Release
-**Target: Live on Google Play and App Store**
 
-### Session 5.1 — Google Play Submission
-```
-Read context.md first. Guide me through Google Play
-store submission — APK signing, keystore setup,
-store listing, screenshots, content rating, pricing.
-```
-
----
-
-### Session 5.2 — iOS App Store Submission
-```
-Read context.md first. Guide me through iOS App Store
-submission — Godot iOS export setup, signing
-certificates, TestFlight beta, App Store listing.
-```
-
----
-
-### Session 5.3 — Post Launch
-```
-Read context.md first. Post launch plan —
-monitoring reviews, paragon content updates,
-player feedback integration, update cadence.
-```
+### Session 5.1 — Google Play Submission ⬜
+### Session 5.2 — iOS App Store Submission ⬜
+### Session 5.3 — Post Launch ⬜
 
 ---
 
@@ -325,9 +335,8 @@ Godot 4 GDScript.
 
 ### Partner Feedback Translation
 ```
-Read context.md first.
-Partner feedback from latest playtest:
-[paste feedback.md session]
+Read context.md and systems.md first.
+Partner feedback from latest playtest: [paste]
 Convert into prioritised technical tasks.
 Flag anything that requires architecture changes.
 ```
@@ -358,14 +367,14 @@ with our architecture decisions:
 | Session | Status | Notes |
 |---|---|---|
 | 0 — Setup | ✅ Complete | Environment fully configured |
-| 1.1 — Player Scene | ✅ Complete | Player moves, boundaries work, orange triangle placeholder |
-| 1.2 — Enemy Spawning | ✅ Complete | enemies spawn, chase player, added aggro radius |
-| 1.3 — Spell System | ✅ Complete | spells fire correctly and enemies despawn after hit |
-| 1.4 — Life System | ✅ Complete | added hp bar yo |
-| 1.5 — Alpha Polish | ✅ Complete | Full juice pass done. All audio assigned. APK exported and tested on device. |
-| 2.1 — Spell Combos | ⏳ Next | Start here |
-| 2.2 — Crafting UI | ⬜ Pending | |
-| 2.3 — Enemy Variants | ⬜ Pending | |
+| 1.1 — Player Scene | ✅ Complete | Player moves, boundaries work, orange triangle |
+| 1.2 — Enemy Spawning | ✅ Complete | Enemies spawn, chase player, aggro radius |
+| 1.3 — Spell System | ✅ Complete | Spells fire, enemies take damage and die |
+| 1.4 — Life System | ✅ Complete | HP bar, 3 lives, game over, restart |
+| 1.5 — Alpha Polish | ✅ Complete | Juice pass, audio, APK tested on device |
+| 2.1 — Spell Combos | ✅ Complete | CSV system, 3 autoloads, Fire+Fire+Fire verified, DoT and AoE working |
+| 2.2 — Tome + Crafting UI | ⏳ Next | Tome system + page editor combined |
+| 2.3 — Enemy Variants | ⬜ Pending | Now includes all status effects + summon AI |
 | 2.4 — Element Drops | ⬜ Pending | |
 | 2.5 — Spell Slots | ⬜ Pending | |
 | 3.1 — Boss State Machine | ⬜ Pending | |
@@ -375,9 +384,10 @@ with our architecture decisions:
 | 4.1 — Level Progression | ⬜ Pending | |
 | 4.2 — Ultimate Ability | ⬜ Pending | |
 | 4.3 — Paragon Generator | ⬜ Pending | |
-| 4.4 — Art Pass | ⬜ Pending | |
-| 4.5 — Audio Pass | ⬜ Pending | |
-| 4.6 — Performance | ⬜ Pending | |
+| 4.4 — Item System | ⬜ Pending | New — hats, robes, gloves, boots, weapons |
+| 4.5 — Art Pass | ⬜ Pending | |
+| 4.6 — Audio Pass | ⬜ Pending | |
+| 4.7 — Performance | ⬜ Pending | Renumbered from 4.6 |
 | 5.1 — Google Play | ⬜ Pending | |
 | 5.2 — iOS App Store | ⬜ Pending | |
 | 5.3 — Post Launch | ⬜ Pending | |
@@ -387,4 +397,3 @@ with our architecture decisions:
 > Update status column as sessions complete.
 > Add notes on key decisions made in each session.
 > These notes feed into systems.md.
-
