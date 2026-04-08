@@ -1,0 +1,16 @@
+primary,modifier,finisher,combo_name,bonus_type,bonus_value
+Fire,Fire,Fire,Inferno Bolt,burn_duration_multiplier,2.0
+Ice,Ice,Ice,Absolute Zero,slow_power_multiplier,2.0
+Earth,Earth,Earth,Meteor Strike,damage_multiplier,1.25
+Thunder,Thunder,Thunder,Lightning Storm,chain_targets,4
+Water,Water,Water,Tsunami,splash_radius_multiplier,2.0
+Fire,Ice,Fire,Frostfire,extra_effect,adds slow; DoT ticks also slow
+Ice,Fire,Ice,Frozen Flame,freeze_then_burn,0.5s freeze then burn
+Thunder,Water,Thunder,Tempest,combo_effect,auto_wet; chain x2
+Earth,Fire,Earth,Magma Core,ground_effect,burning ground 2s
+Water,Ice,Water,Flash Freeze,conditional_effect,Wet enemies frozen 1s
+Dark,Fire,Dark,Hellfire,burn_damage_multiplier_vs_cursed,1.3
+Holy,Ice,Holy,Divine Frost,slow_reduces_enemy_damage,0.15
+Holy,Dark,Holy,Eclipse,damage_multiplier,1.5
+Dark,Holy,Dark,Void Collapse,combo_effect,lifesteal x2; curse duration x2
+Fire,Thunder,Fire,Plasma Bolt,chain_burn,burn chains to shocked enemies

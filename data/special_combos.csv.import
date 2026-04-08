@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://c13o82ebsxqj6"
+
+[deps]
+
+files=["res://data/special_combos.modifier.translation", "res://data/special_combos.finisher.translation", "res://data/special_combos.combo.translation", "res://data/special_combos.bonus.translation", "res://data/special_combos.bonus.translation"]
+
+source_file="res://data/special_combos.csv"
+dest_files=["res://data/special_combos.modifier.translation", "res://data/special_combos.finisher.translation", "res://data/special_combos.combo.translation", "res://data/special_combos.bonus.translation", "res://data/special_combos.bonus.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

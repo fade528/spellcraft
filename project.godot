@@ -18,6 +18,9 @@ config/icon="res://icon.svg"
 [autoload]
 
 ProgressionManager="*res://scripts/progression_manager.gd"
+PlayerInventory="*uid://0e8khx47234k"
+SpellComposer="*uid://djl4jfw7rs7f2"
+SummonManager="*uid://cseuxiiya64qd"
 
 [display]
 

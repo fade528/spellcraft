@@ -1,0 +1,22 @@
+element,count_threshold,bonus_type,bonus_value
+Fire,5,effect_potency_multiplier,1.25
+Fire,10,alternate_finisher_unlock,TRUE
+Fire,15,mastery_bonus,burning splash leave 2s fire ground
+Ice,5,effect_potency_multiplier,1.25
+Ice,10,alternate_finisher_unlock,TRUE
+Ice,15,mastery_bonus,slow enemy attack speed by 50%
+Earth,5,effect_potency_multiplier,1.25
+Earth,10,alternate_finisher_unlock,TRUE
+Earth,15,mastery_bonus,stagger upgraded to 2s on heavy hits
+Thunder,5,effect_potency_multiplier,1.25
+Thunder,10,alternate_finisher_unlock,TRUE
+Thunder,15,mastery_bonus,chain gains +2 extra target and prioritizes Wet enemies
+Water,5,effect_potency_multiplier,1.25
+Water,10,alternate_finisher_unlock,TRUE
+Water,15,mastery_bonus,10% chance to double cast the same spell
+Holy,5,effect_potency_multiplier,1.25
+Holy,10,alternate_finisher_unlock,TRUE
+Holy,15,mastery_bonus,crit+10% and crit dmg is from 1.5 to 2x
+Dark,5,effect_potency_multiplier,1.25
+Dark,10,alternate_finisher_unlock,TRUE
+Dark,15,mastery_bonus,enemy slained by dark spells explode 50% hp as dmg

@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://x3o3nuqwhg4q"
+
+[deps]
+
+files=["res://data/milestones.count.translation", "res://data/milestones.bonus.translation", "res://data/milestones.bonus.translation"]
+
+source_file="res://data/milestones.csv"
+dest_files=["res://data/milestones.count.translation", "res://data/milestones.bonus.translation", "res://data/milestones.bonus.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

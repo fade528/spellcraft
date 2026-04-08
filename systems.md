@@ -23,12 +23,12 @@ Notes: Gotchas, things to watch for
 ## Environment
 
 **Date:** TBD
-**Godot version:** 4.x (update with exact version on install)
+**Godot version:** 4.6.2.stable
 **VS Code extensions:** godot-tools
 **Target platform:** Android primary, iOS secondary
 **Viewport:** 1080x1920 portrait
 **Physics fps:** 60
-**Git remote:** TBD
+**Git remote:** github.com/fade528/spellcraft
 
 ---
 
@@ -48,8 +48,6 @@ Notes: Gotchas, things to watch for
 
 ## Decisions Log
 
-*(Add entries here as you build. Examples below show the format.)*
-
 ---
 
 ### Player Movement
@@ -58,8 +56,6 @@ Notes: Gotchas, things to watch for
 **Reason:** Touchpad gives full 360 degree vector naturally. Sprite snaps to nearest of 8 directions for visual clarity without restricting movement.
 **Implementation:**
 ```gdscript
-# Snap movement vector to 8 directions for sprite selection only
-# Movement itself remains fully analogue
 func get_direction_8(movement: Vector2) -> String:
     if movement.length() < 0.1:
         return "idle"
@@ -168,17 +164,17 @@ func _on_spawn_timer_timeout():
 ```
 **Notes:** Enemies despawn when position.y > 1980. spawn_rate and enemy_speed exported.
 
-### Player Movement
-Date: [6 April 2026]
-Decision: CharacterBody2D with touchpad CanvasLayer
-Implementation: TouchpadBase + TouchpadKnob ColorRects,
-drag input via InputEventScreenDrag, 8-direction facing
-via FacingMarker Polygon2D, screen clamping to 1080x1920
-Notes: Player starts top-left, will centre in Game scene
+---
+
+### Player Movement (Session 1.1)
+**Date:** 2026-04-06
+**Decision:** CharacterBody2D with touchpad CanvasLayer
+**Implementation:** TouchpadBase + TouchpadKnob ColorRects, drag input via InputEventScreenDrag, 8-direction facing via FacingMarker Polygon2D, screen clamping to 1080x1920
+**Notes:** Player starts top-left, will centre in Game scene
 
 ---
 
-### Enemy Spawning
+### Enemy Spawning (Session 1.2)
 **Date:** 2026-04-06
 **Decision:** Chaser enemies are separate CharacterBody2D scenes spawned by an EnemySpawner timer into the Game scene.
 **Reason:** Keeps enemy behaviour self-contained while the spawner owns cadence and tuning through exported values.
@@ -197,7 +193,7 @@ func _on_spawn_timer_timeout() -> void:
 
 ---
 
-### Scrolling Background
+### Scrolling Background (Session 1.2)
 **Date:** 2026-04-06
 **Decision:** Two stacked `ColorRect` nodes scroll downward and wrap to fake an infinite background in portrait mode.
 **Reason:** Placeholder art is enough for early feel testing and keeps Session 1.2 lightweight.
@@ -208,94 +204,191 @@ func _scroll_background(background_rect: ColorRect, delta: float) -> void:
     if background_rect.position.y >= 1920.0:
         background_rect.position.y -= 3840.0
 ```
-**Notes:** Current playable harness is `res://scenes/game.tscn`, which contains `ScrollingBackground`, `Player`, and `EnemySpawner`.
+**Notes:** Current playable harness is `res://scenes/game.tscn`.
 
-### Enemy Chase Behaviour
-Date: 2026-04-06
-Decision: Chasers disengage when player distance exceeds chase_distance (default 300px)
-Reason: Without cutoff, enemies stack on player indefinitely and never despawn
-Implementation: Distance check in _physics_process before normalizing direction vector.
-If within chase_distance, move toward player. Otherwise fall straight down.
-Notes: chase_distance is @export — tunable in inspector. Revisit during enemy tuning session.
-
-### Collision Architecture (interim)
-Date: 2026-04-06
-Decision: Enemies and player both disable physical body collision with each other for now
-Reason: move_and_slide() caused stacking. Damage will come via Area2D hurtboxes in Session 1.4
-Implementation: set_collision_mask_value(1/2, false) in _ready() on both enemy and player
-Notes: Remove this when hurtboxes are implemented in 1.4 — physical layers should be restored
 ---
 
-### Spell System
-Date: 2026-04-06
-Decision: Spells use `SpellData` resources for tuning, a `SpellCaster` child on the player for auto-fire, and `Area2D` projectiles against enemy hurtboxes.
-Reason: This keeps spell balance data separate from runtime casting logic and matches the planned layer-4/layer-5 hurtbox architecture.
-Implementation: `res://scripts/spell_data.gd` defines `damage`, `cooldown`, and `projectile_speed`.
-`res://scripts/spell_caster.gd` runs a cooldown Timer, aims at the nearest node in group `enemies`, and instantiates `res://scenes/spell_projectile.tscn`.
-`res://scripts/spell_projectile.gd` moves upward by default, can be aimed toward a target, emits a hit signal, and damages enemies through their hurtbox `Area2D`.
-Notes: Starter spell resource is `res://resources/spells/basic_bolt.tres`. Enemies now have a layer-4 hurtbox child and a `take_damage(amount)` method with exported `max_hp`.
-
-### Life System + HP Bar (Session 1.4 — complete)
+### Enemy Chase Behaviour (Session 1.2)
 **Date:** 2026-04-06
-**Decision:** Single HP bar owned by ProgressionManager autoload. Lives are retained as a
-second layer — losing all HP costs one life, refills HP to max, and triggers respawn.
-Three lives lost triggers game over.
-**Reason:** HP bar is more future-proof than lives-only for a roguelite where spells, items,
-and enemies will deal variable damage amounts.
+**Decision:** Chasers disengage when player distance exceeds chase_distance (default 300px)
+**Reason:** Without cutoff, enemies stack on player indefinitely and never despawn
+**Implementation:** Distance check in _physics_process before normalizing direction vector. If within chase_distance, move toward player. Otherwise fall straight down.
+**Notes:** chase_distance is @export — tunable in inspector. Revisit during enemy tuning session.
+
+---
+
+### Collision Architecture — Interim (Session 1.2)
+**Date:** 2026-04-06
+**Decision:** Enemies and player both disable physical body collision with each other for now
+**Reason:** move_and_slide() caused stacking. Damage will come via Area2D hurtboxes in Session 1.4
+**Implementation:** set_collision_mask_value(1/2, false) in _ready() on both enemy and player
+**Notes:** Remove this when hurtboxes are implemented in 1.4 — physical layers should be restored
+
+---
+
+### Spell System (Session 1.3)
+**Date:** 2026-04-06
+**Decision:** Spells use `SpellData` resources for tuning, a `SpellCaster` child on the player for auto-fire, and `Area2D` projectiles against enemy hurtboxes.
+**Reason:** Keeps spell balance data separate from runtime casting logic and matches the planned layer-4/layer-5 hurtbox architecture.
+**Implementation:** `res://scripts/spell_data.gd` defines damage, cooldown, and projectile_speed. `res://scripts/spell_caster.gd` runs a cooldown Timer, aims at the nearest node in group `enemies`, and instantiates `res://scenes/spell_projectile.tscn`. `res://scripts/spell_projectile.gd` moves upward by default, can be aimed toward a target, emits a hit signal, and damages enemies through their hurtbox Area2D.
+**Notes:** Starter spell resource is `res://resources/spells/basic_bolt.tres`. Enemies now have a layer-4 hurtbox child and a `take_damage(amount)` method with exported `max_hp`.
+
+---
+
+### Life System + HP Bar (Session 1.4)
+**Date:** 2026-04-06
+**Decision:** Single HP bar owned by ProgressionManager autoload. Lives are retained as a second layer — losing all HP costs one life, refills HP to max, and triggers respawn. Three lives lost triggers game over.
+**Reason:** HP bar is more future-proof than lives-only for a roguelite where spells, items, and enemies will deal variable damage amounts.
 **Implementation:**
-ProgressionManager (autoload at /root/ProgressionManager) owns `lives`, `current_hp`,
-`max_hp`. Exposes `take_damage(amount)`, `lose_life()`, `refill_hp()`, `reset_run()`.
-Emits `hp_changed(current_hp, max_hp)` and `life_lost(lives_remaining)` and `game_over`.
+ProgressionManager (autoload at /root/ProgressionManager) owns `lives`, `current_hp`, `max_hp`. Exposes `take_damage(amount)`, `lose_life()`, `refill_hp()`, `reset_run()`. Emits `hp_changed(current_hp, max_hp)` and `life_lost(lives_remaining)` and `game_over`.
 
-player.gd enforces iframes locally, then delegates to ProgressionManager.take_damage().
-player_hurtbox.gd (Area2D layer 3, mask 2) detects enemy body overlap and calls
-player.take_damage(contact_damage). contact_damage is @export, default 10.0.
+player.gd enforces iframes locally, then delegates to ProgressionManager.take_damage(). player_hurtbox.gd (Area2D layer 3, mask 2) detects enemy body overlap and calls player.take_damage(contact_damage). contact_damage is @export, default 10.0.
 
-game.gd connects life_lost → clears enemies/projectiles groups → calls player.respawn().
-Connects game_over → change_scene_to_file game_over.tscn.
-game_over.gd calls ProgressionManager.reset_run() before returning to game.tscn.
+game.gd connects life_lost → clears enemies/projectiles groups → calls player.respawn(). Connects game_over → change_scene_to_file game_over.tscn. game_over.gd calls ProgressionManager.reset_run() before returning to game.tscn.
 
-HUD shows three ColorRect life icons + ProgressBar (HPBar) + Label (HPLabel, format "100 / 100").
-All HUD nodes reference ProgressionManager via get_node_or_null("/root/ProgressionManager")
-rather than the bare global name — workaround for a UID autoload registration issue when
-editing scripts externally in VS Code.
+HUD shows three ColorRect life icons + ProgressBar (HPBar) + Label (HPLabel, format "100 / 100"). All HUD nodes reference ProgressionManager via get_node_or_null("/root/ProgressionManager").
 
 **Notes:**
 - iframe_duration is @export on player.gd, default 1.5s. Tunable in inspector.
 - max_hp and starting_lives are @export on ProgressionManager. Tunable in inspector.
-- Autoload must be registered via Godot editor UI (Project → Project Settings → Globals →
-  Autoload), not by editing project.godot directly — direct edits produce a UID reference
-  that Godot can't resolve. If the path shows as blank in the Autoload tab, delete and
-  re-add the entry.
-- All scripts use get_node_or_null("/root/ProgressionManager") as the safe fetch pattern.
-  Do not revert to bare ProgressionManager global references until the UID issue is confirmed
-  resolved.
-- Projectile-to-player damage not yet implemented (no layer-5 → layer-3 mask). Add in a
-  future combat session.
+- Autoload must be registered via Godot editor UI (Project → Project Settings → Globals → Autoload), not by editing project.godot directly — direct edits produce a UID reference that Godot can't resolve. If the path shows as blank in the Autoload tab, delete and re-add the entry. Always type paths manually, never use the folder browser.
+- All scripts use get_node_or_null("/root/NodeName") as the safe fetch pattern throughout the project. Never use bare global autoload references.
+- Projectile-to-player damage not yet implemented (no layer-5 → layer-3 mask). Add in a future combat session.
 
-  ### Audio — Session 1.5
+---
+
+### Audio (Session 1.5)
 **Date:** 2026-04-06
+**Decision:** All audio nodes pre-wired in game.tscn, streams assigned.
+**Implementation:**
+- `SpellHitSFX` — spell_hit.wav, plays on spell hit signal
+- `PlayerHurtSFX` — hurt.wav, plays on hp_changed decrease
+- `EnemyDeathSFX` — popenemydeath.wav, plays on enemy died signal
+- `BGMusic` — mischeifaudop.wav, autoplay on, loop on
 
-**Decision:** All audio nodes were pre-wired in Session 1.5 SFX change. 
-This entry confirms streams are now assigned.
-
-**SFX (AudioStreamPlayer nodes in game.tscn)**
-- `SpellHitSFX` — spell_hit.wav assigned, plays on spell hit signal
-- `PlayerHurtSFX` — hurt.wav assigned, plays on hp_changed decrease
-- `EnemyDeathSFX` — popenemydeath.wav assigned, plays on enemy died signal
-- All SFX as .wav format
-
-**Background Music (AudioStreamPlayer in game.tscn)**
-- BGMusic — assigned mischeifaudop.wav .wav, autoplay on, loop on
-
-**File locations**
+**File locations:**
+```
 res://assets/audio/sfx/spell_hit.wav
 res://assets/audio/sfx/hurt.wav
 res://assets/audio/sfx/popenemydeath.wav
 res://assets/audio/music/mischeifaudop.wav
+```
+**Notes:** SFX use .wav (low latency). Music uses .ogg (compressed). No AudioBus mixing yet — all on Master bus. Separate SFX/Music buses come in Session 4.5.
 
-**Notes:**
-- SFX use .wav (low latency, better for short one-shots)
-- Music uses .ogg (compressed, better for looping tracks)
-- No AudioBus mixing yet — all playing on Master bus. 
-  Separate SFX/Music buses come in Session 4.5 audio pass.
+---
+
+### Spell Combo Architecture (Session 2.1)
+**Date:** 2026-04-08
+**Decision:** CSV-driven spell composition system. All spell values live in `res://data/spell_elements.csv`, edited in Google Sheets only. SpellComposer autoload parses the CSV and composes SpellData resources at runtime from element slot choices.
+
+**Reason:** Data over scripts. Partner can tune values in Google Sheets without touching code. Adding new combos or elements = adding CSV rows, not writing new scripts.
+
+**Slot Names (renamed from Primary/Modifier/Finisher):**
+- Elemental — core identity of the spell, sets inherent dmgmult
+- Empowerment — amplifies damage or damage-related attributes
+- Enchantment — adds functions and gimmicks
+- Summon — independent slot, managed separately by SummonManager
+
+**Damage Formula:**
+```
+final_dmg = item_base_dmg × elemental_dmgmult_chain × weakness_mult × buff_debuff_mult
+
+DoT tick dmg = final_dmg × value1 (e.g. burn = final_dmg × 0.1)
+total_spell_cd = sum of cd values where cd_type == "cast"
+```
+
+**CSV Column Structure:**
+```
+spell_id | element | position | target | effect_name |
+value1 | value2 | value3 | value4 | value5 |
+cd | cd_type | dmgmult | budget | Description
+```
+
+**cd_type values:**
+- `cast` — adds to total_spell_cd
+- `passive` — registered with PlayerInventory, never adds to cd
+- `recharge` — independent timer (summons, intervention, requiem)
+
+**dmgmult rules:**
+- dmgmult > 0 → multiplied into dmgmult_chain
+- dmgmult = 0 → treated as 1.0 (neutral, no contribution)
+- SpellData.damage is always set to 1.0 — flat damage comes from item_base_dmg only
+- SpellData.dmgmult_chain holds the composed multiplier
+
+**Weakness Wheel (hardcoded, never changes):**
+```
+fire beats ice → ×1.2      ice beats earth → ×1.2
+earth beats thunder → ×1.2  thunder beats water → ×1.2
+water beats fire → ×1.2     holy beats dark → ×1.2
+dark beats holy → ×1.2
+Reverse = ×0.8. No match = ×1.0. Empty defender = ×1.0.
+```
+
+**Holy/Dark special mechanic:**
+- Elemental slot fires on player stop, not auto-cast
+- Gated by cooldown — stopping triggers cast only if cd is ready
+- SpellComposer.is_stop_cast(element) returns true for holy/dark
+- SpellCaster tracks _is_moving and _just_stopped, checks is_stop_cast in timer callback
+
+**Autoload registration order (critical):**
+```
+1. ProgressionManager
+2. PlayerInventory
+3. SpellComposer
+4. SummonManager
+```
+
+**Autoloads:**
+- `PlayerInventory` — tracks element_counts, active_passives, equipment stub. Exposes get_scaling_multiplier(element) → 1.0 + count × 0.02
+- `SpellComposer` — loads CSV on _ready(), builds _rows and _index dictionaries, exposes compose_spell(), get_weakness_multiplier(), is_stop_cast(), get_summon_data()
+- `SummonManager` — stub, spawns yellow placeholder that follows player. Full AI in Session 2.3. Call SummonManager.initialize(player) from player _ready()
+
+**Summon system:**
+- Summon slot is independent of the 3 spell slots — players always have one summon active
+- One summon active at a time — spawning a new one despawns the existing one
+- Summon attacks mimic player slot 1 spell effects (implemented in Session 2.3)
+- Dual-element summons = future expansion, not planned yet
+- All summon stats (hp, attack, recharge) in spell_elements.csv, position=Summon, target=Summon
+
+**AoE effects:**
+- explosion and splash use _apply_aoe(radius, dmg, exclude) — primary hit target is excluded to prevent double damage
+- AoE hits all enemies in group "enemies" within radius except the excluded node
+
+**Enemy status methods:**
+- apply_burn(dmg_per_tick, interval, duration) implemented in enemy.gd — uses repeating Timer, first tick delayed by one interval to separate from impact number
+- apply_slow, apply_stagger, apply_brittle, apply_chain, apply_pushback, apply_blind — not yet implemented, guarded by has_method() checks, silently skipped until Session 2.3
+- execute() — not yet implemented, guarded by has_method()
+
+**DoT damage numbers:**
+- Burn ticks call take_damage() so they inherit crit chance naturally
+- Damage numbers use random x offset (randf_range -12 to 12) to prevent stacking
+- Impact number and first burn tick separated by one full interval (burn Timer starts with delay)
+
+**CSV editing workflow:**
+- Edit in Google Sheets only — never via text editor or Codex
+- Export as CSV → replace res://data/spell_elements.csv
+- Codex reads the CSV but never modifies it
+
+**Files:**
+```
+res://data/spell_elements.csv
+res://scripts/spell_data.gd
+res://scripts/spell_caster.gd
+res://scripts/spell_projectile.gd
+res://scripts/managers/spell_composer.gd
+res://scripts/managers/player_inventory.gd
+res://scripts/managers/summon_manager.gd
+```
+
+**Verified in-engine (smoke test results):**
+```
+compose_spell("fire","fire","fire","bolt","enemy")
+  → total_cd: 3.0 ✅
+  → total_budget: 5.5 ✅
+  → dmgmult_chain: 1.2 ✅
+get_weakness_multiplier("fire","ice") → 1.2 ✅
+is_stop_cast("holy") → true ✅
+get_summon_data("fire") → forgespirits ✅
+PlayerInventory scaling at count 0 → 1.0 ✅
+Fire+Fire+Fire in-game: impact 12, explosion AoE 4 on clumped enemies, burn ticks 1 per second ✅
+```

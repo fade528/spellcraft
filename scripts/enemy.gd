@@ -15,6 +15,10 @@ const DESPAWN_Y := 1980.0
 var player_ref: Node2D
 var current_hp: float
 var hit_flash_tween: Tween
+var _burn_timer: Timer = null
+var _burn_damage: float = 0.0
+var _burn_ticks_remaining: int = 0
+var _burn_interval: float = 1.0
 
 
 func _ready() -> void:
@@ -78,7 +82,8 @@ func _spawn_damage_number(amount: float, is_crit: bool) -> void:
 
 	parent_node.add_child(damage_label)
 
-	var center_position := position
+	var x_offset := randf_range(-12.0, 12.0)
+	var center_position := position + Vector2(x_offset, 0)
 
 	if is_crit:
 		damage_label.add_theme_color_override("font_color", Color(1.0, 0.2, 0.2, 1.0))
@@ -156,3 +161,40 @@ func _spawn_death_particles() -> void:
 
 	var cleanup_timer := get_tree().create_timer(0.5)
 	cleanup_timer.timeout.connect(particles.queue_free)
+
+
+func apply_burn(dmg_per_tick: float, interval: float, duration: float) -> void:
+	_burn_damage = dmg_per_tick
+	_burn_interval = max(interval, 0.1)
+	_burn_ticks_remaining = int(round(duration / _burn_interval))
+
+	if _burn_timer != null and is_instance_valid(_burn_timer):
+		_burn_timer.wait_time = _burn_interval
+		return
+
+	_burn_timer = Timer.new()
+	_burn_timer.wait_time = _burn_interval
+	_burn_timer.one_shot = false
+	_burn_timer.timeout.connect(_on_burn_tick)
+	add_child(_burn_timer)
+	_burn_timer.start(_burn_interval)
+
+
+func _on_burn_tick() -> void:
+	if not is_instance_valid(self) or current_hp <= 0.0:
+		_clear_burn()
+		return
+
+	_burn_ticks_remaining -= 1
+	if _burn_ticks_remaining <= 0:
+		_clear_burn()
+		return
+
+	take_damage(_burn_damage)
+
+
+func _clear_burn() -> void:
+	if _burn_timer != null and is_instance_valid(_burn_timer):
+		_burn_timer.stop()
+		_burn_timer.queue_free()
+	_burn_timer = null

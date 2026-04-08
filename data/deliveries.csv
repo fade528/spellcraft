@@ -1,0 +1,9 @@
+delivery_id,behavior,projectile_count,pattern
+Bolt,single_straight,1,single_line
+Burst,spread_shot,3,spread
+Beam,piercing_line,1,beam
+Blast,aoe_around_caster,1,radial_360
+Cleave,frontal_cone,1,cone
+Missile,tracking,1,homing
+Wall,traveling_barrier,1,wall
+Utility,self_target,1,self
