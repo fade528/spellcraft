@@ -3,6 +3,8 @@ extends Node
 var active_summon: Node2D = null
 var _summon_data: Dictionary = {}
 var _player_ref: Node2D = null
+var _recharge_timer: float = 0.0
+var _recharge_duration: float = 60.0
 
 
 func initialize(player: Node2D) -> void:
@@ -38,6 +40,9 @@ func spawn_summon(element: String) -> void:
 
 
 func _process(_delta: float) -> void:
+	if active_summon == null or not is_instance_valid(active_summon):
+		if _recharge_timer > 0.0:
+			_recharge_timer -= _delta
 	if active_summon != null and is_instance_valid(active_summon):
 		if _player_ref != null and is_instance_valid(_player_ref):
 			active_summon.global_position = _player_ref.global_position + Vector2(50, 0)
@@ -47,6 +52,20 @@ func despawn_summon() -> void:
 	if active_summon != null and is_instance_valid(active_summon):
 		active_summon.queue_free()
 	active_summon = null
+	var recharge = _summon_data.get("cd", 60.0)
+	if recharge is String:
+		recharge = recharge.to_float() if recharge.is_valid_float() else 60.0
+	_recharge_timer = float(recharge)
+
+
+func is_recharged() -> bool:
+	if active_summon != null and is_instance_valid(active_summon):
+		return true
+	return _recharge_timer <= 0.0
+
+
+func get_recharge_remaining() -> float:
+	return max(_recharge_timer, 0.0)
 
 
 func get_summon_stat(key: String) -> Variant:

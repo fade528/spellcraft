@@ -9,8 +9,7 @@
 [ext_resource type="AudioStream" uid="uid://pkefwqn6m00a" path="res://assets/audio/sfx/hurt.wav" id="5_u5sy4"]
 [ext_resource type="AudioStream" uid="uid://ctuof6mvvl7p2" path="res://assets/audio/music/mischeifaudop.wav" id="6_gee14"]
 [ext_resource type="PackedScene" uid="uid://dy4tc3hsl0e66" path="res://scenes/ui/crafting_ui.tscn" id="9_0tnpc"]
-[ext_resource type="PackedScene" uid="uid://brlmwv3ojjiej" path="res://scenes/ui/PageFlipWidget.tscn" id="9_vtaks"]
-[ext_resource type="PackedScene" path="res://scenes/ui/control_strip.tscn" id="11_kvpfn"]
+[ext_resource type="PackedScene" uid="uid://d1i0kn8v5q3qy" path="res://scenes/ui/page_flip_widget.tscn" id="9_vtaks"]
 
 [node name="Game" type="Node2D" unique_id=665229771]
 script = ExtResource("4_uh1wc")
@@ -103,13 +102,15 @@ layout_mode = 2
 theme_override_font_sizes/font_size = 22
 text = "100 / 100"
 
-[node name="PageFlipWidget" parent="HUD" unique_id=788141910 instance=ExtResource("9_vtaks")]
-offset_left = -390.0
-offset_top = -810.0
-offset_right = -1170.0
-offset_bottom = -2430.0
+[node name="PageFlipWidget" parent="HUD" unique_id=1710016491 instance=ExtResource("9_vtaks")]
+layout_mode = 3
+anchors_preset = 0
+anchor_right = 0.0
+anchor_bottom = 0.0
+offset_left = 400.0
+offset_top = 1680.0
+offset_right = 720.0
+offset_bottom = 1900.0
 
 [node name="CraftingUI" parent="." unique_id=503240979 instance=ExtResource("9_0tnpc")]
 layer = 10
-
-[node name="ControlStrip" parent="." unique_id=1990906187 instance=ExtResource("11_kvpfn")]

@@ -62,143 +62,65 @@ Verified: Fire+Fire+Fire total_cd=3.0, dmgmult_chain=1.2, burn ticks and AoE wor
 ---
 
 ### Session 2.2 — Tome, Pages + Crafting UI
-**Status: ⏳ Next**
 
-```
-Read context.md and systems.md first. Build the Tome
-and Page system with integrated crafting UI.
+**Status: ✅ Complete**
 
-== TOME AND PAGE SYSTEM ==
-
-A Tome holds up to 10 Pages. Each Page is a complete
-saved build: 4 spell slots + 1 summon + 2 ultimates.
-
-Create TomeManager autoload at
-res://scripts/managers/tome_manager.gd.
-
-Inner class PageData:
-  var page_name: String = "Page 1"
-  var slots: Array[Dictionary] = []
-  # each slot dict: { elemental, empowerment,
-  #   enchantment, delivery, target }
-  var summon_element: String = "fire"
-  var ult1: String = ""
-  var ult2: String = ""
-
-TomeManager vars:
-  var pages: Array = []       # max 10 PageData
-  var active_page_index: int = 0
-  var _flip_cooldown: float = 0.0
-  var _can_flip: bool = true
-
-TomeManager methods:
-  func can_flip_page() -> bool
-    # true if _flip_cooldown <= 0.0
-    # AND SummonManager.is_recharged() == true
-
-  func flip_to_page(index: int) -> void
-    # guard: can_flip_page() must be true
-    # call refresh_spell() on each SpellCaster
-    # call SummonManager.spawn_summon()
-    # set _flip_cooldown = longest total_cd across
-    # all active SpellCasters
-
-  func _process(delta: float) -> void
-    # count down _flip_cooldown
-
-  func save_page(index: int, page: PageData) -> void
-  func get_page(index: int) -> PageData
-  func get_active_page() -> PageData
-  func add_page() -> void   # adds blank page if < 10
-
-Add to SummonManager:
-  func is_recharged() -> bool
-    # true if summon is alive OR recharge timer complete
-
-== CRAFTING UI ==
-
-Build a pause menu CanvasLayer with two views:
-
-VIEW 1 — TOME VIEW (default on pause):
-- Scrollable list of all pages (up to 10)
-- Each page shows its name + element summary
-- Tap page to select it
-- "Flip to this page" button — greyed with remaining
-  time shown if page flip is gated
-- "Edit page" opens View 2
-- "New page" creates blank page
-- Resume button
-
-VIEW 2 — PAGE EDITOR:
-- 4 spell slot rows (slot 1 active, 2-4 greyed if locked)
-- Each row has 4 pickers: Elemental / Empowerment /
-  Enchantment / Delivery
-- Tap any picker to open element or delivery selector
-- Summon picker row: tap to change summon element
-- Stats panel: total_cd, total_budget, dmgmult_chain
-  shown per active slot
-- "Save page" writes back to TomeManager
-- Back button returns to Tome View
-
-Start with 1 spell slot active (2-4 visible but locked).
-Elements: Fire, Ice, Earth, Thunder, Water, Holy, Dark.
-Deliveries: Bolt, Burst, Beam, Blast, Cleave,
-Missile, Wall, Utility.
-
-Key APIs:
-  SpellCaster.refresh_spell(elemental, empowerment,
-    enchantment, delivery, target)
-  SummonManager.spawn_summon(element)
-  SummonManager.is_recharged() -> bool
-  TomeManager.can_flip_page() -> bool
-  TomeManager.flip_to_page(index)
-
-Register TomeManager in Autoload after SummonManager.
-
-Godot 4 GDScript.
-Current scene tree: [paste]
-Relevant code: [paste spell_caster.gd,
-spell_composer.gd, summon_manager.gd]
-```
-
-**Delivers:** Tome with 10 pages, page editor, mid-combat page flipping gated by spell CD and summon recharge
+Key decisions:
+- TomeManager autoload, max 8 pages, JSON persistence
+- PageData resource: slots, summon_element, ult1, ult2
+- CraftingUI: pauses game, Escape to open, Edit→Craft rename
+- Set Active bypasses flip cooldown gate directly
+- child.free() not queue_free() to prevent duplicate buttons
+- PageFlipWidget: edge swipe gesture (0-10%, 90-100% of strip)
+- Grid always centre screen, drag direction decoupled from press point
+- _select_start resets when finger enters mid zone (10-90%)
+- ControlStrip: bottom 20%, shows page/CD/summon, touchpad lives here
+- Input zones: 0-10% flip, 10-90% touchpad, 90-100% flip
+- player.gd uses _input(), page_flip_widget.gd uses _input() with zone guards
+- Player clamps to top 80% viewport, RESPAWN_POSITION = (540, 1400)
+- .tscn files must never be rewritten by Codex — UID breaks scene
 
 ---
 
 ### Session 2.3 — Enemy Variants + Status Effects
 **Status: ⬜ Pending**
 
-```
+**Note before starting:** player.gd uses _input() not _unhandled_input(). Enemy status methods are guarded by has_method(). Control strip bottom 20% must not be obstructed by enemy projectiles or effects. Paste current scene tree and enemy.gd + summon_manager.gd when opening.
 Read context.md and systems.md first. Build Shooter
 and Tank enemy types. Also implement all pending
 status methods so spell effects land correctly.
-
+Also implement SummonManager fully.
 Existing enemy has: take_damage(), apply_burn()
 Add to ALL enemy types:
-- apply_slow(amount, duration)
-- apply_stagger(chance, duration)
-- apply_brittle(freeze_duration, dmg_mult) — requires chilled
-- apply_chain(targets) — bounce to nearby enemies
-- apply_pushback(distance)
-- apply_blind(duration)
-- execute(chance) — instant kill, no bosses
-- get_element() -> String
-- apply_wet(), apply_corruption(), apply_chill()
 
-Also implement SummonManager fully:
-- Summon follows player at 50px
-- Summon mimics player slot 1 spell on its attack timer
-- Summon takes damage and dies, recharges after cd
+apply_slow(amount, duration)
+apply_stagger(chance, duration)
+apply_brittle(freeze_duration, dmg_mult) — requires chilled
+apply_chain(targets) — bounce to nearby enemies
+apply_pushback(distance)
+apply_blind(duration)
+execute(chance) — instant kill, no bosses
+get_element() -> String
+apply_wet(), apply_corruption(), apply_chill()
 
-Shooter: fires at player every 3s, range 400px.
-Tank: 5x HP, 0.4x speed, contact damage 25.
+SummonManager full implementation:
 
-Godot 4 GDScript.
-Current scene tree: [paste]
-Relevant code: [paste enemy.gd, summon_manager.gd]
-```
+Summon follows player at 50px offset
+Summon mimics player slot 1 spell on its own attack timer
+Summon has HP, takes damage, dies and starts recharge timer
+Recharge times from CSV: most = 60s, Thunder = 20s
 
-**Delivers:** Three enemy types, all status effects functional, summon AI working
+Shooter enemy:
+
+Fires projectile at player every 3s
+Range 400px, disengages beyond range
+Projectile uses existing spell_projectile scene
+
+Tank enemy:
+
+5x base HP, 0.4x speed
+Contact damage 25
+Same hurtbox/layer setup as Chaser
 
 ---
 
@@ -373,8 +295,8 @@ with our architecture decisions:
 | 1.4 — Life System | ✅ Complete | HP bar, 3 lives, game over, restart |
 | 1.5 — Alpha Polish | ✅ Complete | Juice pass, audio, APK tested on device |
 | 2.1 — Spell Combos | ✅ Complete | CSV system, 3 autoloads, Fire+Fire+Fire verified, DoT and AoE working |
-| 2.2 — Tome + Crafting UI | ⏳ Next | Tome system + page editor combined |
-| 2.3 — Enemy Variants | ⬜ Pending | Now includes all status effects + summon AI |
+| 2.2 — Tome + Crafting UI | ✅ Complete | TomeManager, PageData, CraftingUI pause menu, PageFlipWidget edge-swipe, ControlStrip, persistent JSON save, rename/delete/set active, input zones 0-10/10-90/90-100% |
+| 2.3 — Enemy Variants | ⬜ Pending | Includes all status effects + full summon AI |
 | 2.4 — Element Drops | ⬜ Pending | |
 | 2.5 — Spell Slots | ⬜ Pending | |
 | 3.1 — Boss State Machine | ⬜ Pending | |

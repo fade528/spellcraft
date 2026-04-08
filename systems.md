@@ -392,3 +392,76 @@ get_summon_data("fire") → forgespirits ✅
 PlayerInventory scaling at count 0 → 1.0 ✅
 Fire+Fire+Fire in-game: impact 12, explosion AoE 4 on clumped enemies, burn ticks 1 per second ✅
 ```
+Read res://systems.md and append this new section
+at the end of the Decisions Log:
+
+### Tome + Page System (Session 2.2)
+**Date:** 2026-04-08
+**Decision:** Full tome/page system with persistent
+storage, in-game flip gesture, and dedicated control strip.
+
+**TomeManager autoload:**
+- Manages up to 8 pages (PageData resources)
+- Saves/loads to user://tome_pages.json on every mutation
+- Pages persist across runs and restarts
+- can_flip_page(target_index) bypasses gate if target == active
+- Signals: page_flipped, page_saved, page_deleted, page_renamed, flip_blocked
+
+**PageData resource:**
+- class_name PageData extends Resource
+- Fields: page_name, slots (Array[Dictionary]), summon_element, ult1, ult2
+- ensure_slots(4) pads to 4 slots with fire/fire/fire/bolt defaults
+- make_default_slot() static helper
+
+**CraftingUI (Escape menu):**
+- Pauses game on open (get_tree().paused = true)
+- process_mode = PROCESS_MODE_ALWAYS so UI works while paused
+- Tome view: lists pages with Craft, Set Active, Rename, Delete buttons
+- Set Active bypasses flip cooldown gate — direct apply
+- Page editor: slot 0 active, slots 1-3 greyed/disabled
+- Stats panel: live CD, budget, dmgmult_chain via SpellComposer
+- Save writes draft back and applies live if editing active page
+- child.free() not queue_free() to prevent duplicate New Page button
+
+**PageFlipWidget (in-game gesture):**
+- Covers full screen, MOUSE_FILTER_IGNORE so input passes through
+- Uses _input() not _unhandled_input()
+- Gesture: press left 0-10% or right 90-100% of strip → grid appears
+  centre screen → drag into middle zone → direction determines page →
+  release confirms flip
+- _select_start resets when finger enters middle zone (10-90%)
+  so directional drag is not bounded by edge press position
+- Grid: 3x3, centre cell = indicator, 8 cells = pages 1-8
+- Empty page slots shown dimmed
+
+**ControlStrip (always-visible HUD footer):**
+- Bottom 20% of screen (y >= 80%)
+- Shows: active page name, slot 1 spell CD, summon recharge status
+- Updates every _process frame for CD and summon
+- Touchpad zone: x 10-90%, y 80-100% (strip only)
+- Flip trigger zones: x 0-10% and x 90-100%, y 80-100%
+
+**Input zone map (bottom 20% strip):**
+Left  0-10%  → flip gesture trigger
+Mid  10-90%  → touchpad (player movement)
+Right 90-100% → flip gesture trigger
+
+**Player changes:**
+- Clamps to top 80% of viewport (dynamic viewport size)
+- Touchpad activates only in strip zone, excludes flip edges
+- Uses _input() not _unhandled_input()
+- RESPAWN_POSITION = Vector2(540, 1400)
+
+**Autoload order (final for Phase 2):**
+1. ProgressionManager
+2. PlayerInventory
+3. SpellComposer
+4. SummonManager
+5. TomeManager
+
+**UI layout reserved (not yet built):**
+- Top: Boss HP bar (Session 3.x)
+- Below top: game area
+- Above strip: HP bar + lives (move from top in future session)
+- Above strip: 4 action buttons (Session 4.x)
+- Bottom 20%: control strip (built this session)

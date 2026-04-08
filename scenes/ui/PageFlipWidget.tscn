@@ -1,0 +1,42 @@
+[gd_scene format=3 uid="uid://brlmwv3ojjiej"]
+
+[ext_resource type="Script" uid="uid://tw8oostaiell" path="res://scripts/ui/page_flip_widget.gd" id="1_p7def"]
+
+[node name="PageFlipWidget" type="Control" unique_id=788141910]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_right = -780.0
+offset_bottom = -1620.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_p7def")
+
+[node name="ActivePageLabel" type="Label" parent="." unique_id=1031473829]
+layout_mode = 0
+offset_left = -1.0
+offset_top = 7.0
+offset_right = 199.0
+offset_bottom = 47.0
+
+[node name="FlipButton" type="Button" parent="." unique_id=750822242]
+layout_mode = 0
+offset_left = 2.0
+offset_top = 3.0
+offset_right = 51.0
+offset_bottom = 43.0
+text = "= Flip"
+
+[node name="FlipGrid" type="Control" parent="." unique_id=1481607849]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="GridContainer" type="GridContainer" parent="FlipGrid" unique_id=1397762671]
+layout_mode = 0
+offset_left = -100.0
+offset_top = -100.0
+offset_right = 200.0
+offset_bottom = 200.0
+columns = 3

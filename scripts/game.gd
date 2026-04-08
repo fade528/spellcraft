@@ -10,6 +10,7 @@ const SHAKE_DURATION := 0.3
 @onready var spell_hit_sfx: AudioStreamPlayer = $SpellHitSFX
 @onready var player_hurt_sfx: AudioStreamPlayer = $PlayerHurtSFX
 @onready var enemy_death_sfx: AudioStreamPlayer = $EnemyDeathSFX
+@onready var crafting_ui = $CraftingUI
 
 var last_known_hp: float = -1.0
 var shake_tween: Tween
@@ -28,6 +29,18 @@ func _ready() -> void:
 		progression_manager.game_over.connect(_on_game_over)
 		progression_manager.hp_changed.connect(_on_hp_changed)
 		last_known_hp = progression_manager.current_hp
+
+	if crafting_ui != null:
+		crafting_ui.ui_closed.connect(_on_crafting_ui_closed)
+
+
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_cancel"):
+		if crafting_ui != null:
+			if crafting_ui.visible:
+				crafting_ui.close_ui()
+			else:
+				crafting_ui.open_ui()
 
 
 func _on_life_lost(lives_remaining: int) -> void:
@@ -101,3 +114,7 @@ func _play_sfx(player_node: AudioStreamPlayer) -> void:
 
 	player_node.stop()
 	player_node.play()
+
+
+func _on_crafting_ui_closed() -> void:
+	pass

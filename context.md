@@ -13,10 +13,7 @@ See session_plan.md for the full list of planned sessions.
 
 A mobile-first 2D roguelite where players craft spells through element combinations, learn through experimentation, and prove mastery through boss fights. Built for Android/iOS in portrait mode.
 
-**Core loop:**
-```
-Fight → Collect → Craft → Adapt → Boss → Learn → Repeat
-```
+**Core loop:**Fight → Collect → Craft → Adapt → Boss → Learn → Repeat
 
 **Design philosophy:** Progression driven by understanding, not grinding. No stat inflation. No random powerup dependency. Player agency through knowledge of the spell system.
 
@@ -36,17 +33,13 @@ Fight → Collect → Craft → Adapt → Boss → Learn → Repeat
 
 ---
 
-## Tech Stack
-
-```
-Engine:        Godot 4.6.2 stable
+## Tech StackEngine:        Godot 4.6.2 stable
 Language:      GDScript (always specify "Godot 4 GDScript" in prompts)
 Editor:        VS Code + godot-tools extension
 AI Agent:      Codex (in VS Code)
 Version ctrl:  Git + GitHub (github.com/fade528/spellcraft)
 Platform:      Android + iOS, portrait 1080x1920
 Renderer:      Mobile
-```
 
 **Critical:** Always write Godot 4 GDScript, never Godot 3. Key differences: `@export`, `@onready`, `CharacterBody2D` (not KinematicBody2D), `velocity` not `move_and_slide(velocity)`.
 
@@ -60,7 +53,9 @@ Phase 2 in progress. Phase 1 (Alpha) is complete — game is playable, APK teste
 
 **Session 2.1 complete:** CSV-driven spell combo system built and verified in-engine.
 
-**Next:** Session 2.2 — Tome + Page system + Crafting UI.
+**Session 2.2 complete:** Tome + Page system, CraftingUI pause menu, PageFlipWidget edge-swipe gesture, ControlStrip footer, persistent page save/load, rename/delete/set active pages, input zones finalized.
+
+**Next:** Session 2.3 — Enemy Variants + Status Effects + Summon AI.
 
 ---
 
@@ -69,31 +64,24 @@ Phase 2 in progress. Phase 1 (Alpha) is complete — game is playable, APK teste
 ### Safe Node Access Pattern
 **All scripts use `get_node_or_null("/root/NodeName")` to access autoloads.** Never use bare global autoload names. This is a project-wide rule due to a UID resolution issue with VS Code external editing.
 
-```gdscript
-# CORRECT
+```gdscriptCORRECT
 var pm = get_node_or_null("/root/ProgressionManager")
 if pm:
-    pm.take_damage(10)
-
-# WRONG — do not use
+pm.take_damage(10)WRONG — do not use
 ProgressionManager.take_damage(10)
-```
 
 ### Autoload Registration
 Autoloads must be registered manually via Godot editor UI (Project → Project Settings → Globals → Autoload). Always type paths manually — never use the folder browser, it generates UID references that fail to resolve.
 
 **Autoload order (critical — do not change):**
-```
-1. ProgressionManager   res://scripts/progression_manager.gd
-2. PlayerInventory      res://scripts/managers/player_inventory.gd
-3. SpellComposer        res://scripts/managers/spell_composer.gd
-4. SummonManager        res://scripts/managers/summon_manager.gd
-5. TomeManager          res://scripts/managers/tome_manager.gd  (Session 2.2)
-```
+ProgressionManager   res://scripts/progression_manager.gd
+PlayerInventory      res://scripts/managers/player_inventory.gd
+SpellComposer        res://scripts/managers/spell_composer.gd
+SummonManager        res://scripts/managers/summon_manager.gd
+TomeManager          res://scripts/managers/tome_manager.gd
 
-### Scene Structure (actual as built)
-```
-Game (scene) — res://scenes/game.tscn
+
+### Scene Structure (actual as built)Game (scene) — res://scenes/game.tscn
 ├── ScrollingBackground
 │   ├── BackgroundA (ColorRect)
 │   └── BackgroundB (ColorRect)
@@ -108,15 +96,43 @@ Game (scene) — res://scenes/game.tscn
 ├── BGMusic (AudioStreamPlayer)
 ├── EnemySpawner (Node)
 │   └── SpawnTimer (Timer)
-└── HUD (CanvasLayer)
-    └── MarginContainer
-        └── VBoxContainer
-            ├── HBoxContainer
-            │   ├── Life1, Life2, Life3 (ColorRect)
-            └── HPRow
-                ├── HPBar (ProgressBar)
-                └── HPLabel (Label)
-```
+├── HUD (CanvasLayer)
+│   ├── MarginContainer
+│   │   └── VBoxContainer
+│   │       ├── HBoxContainer
+│   │       │   ├── Life1, Life2, Life3 (ColorRect)
+│   │       └── HPRow
+│   │           ├── HPBar (ProgressBar)
+│   │           └── HPLabel (Label)
+│   └── PageFlipWidget (Control)
+├── CraftingUI (CanvasLayer)
+└── ControlStrip (CanvasLayer)
+
+### Input Zone Map (bottom 20% control strip)Left  0-10%   → page flip gesture trigger only
+Mid  10-90%   → touchpad (player movement) only
+Right 90-100% → page flip gesture trigger only
+
+### Player Input Architecture
+- `player.gd` uses `_input()` — runs first, sees all events
+- `page_flip_widget.gd` uses `_input()` — zone-guarded, only acts on edge zone presses
+- Neither calls `set_input_as_handled()` — events are read-only, never consumed
+- Touchpad activates only in strip zone (y >= 80%) and mid x zone (10-90%)
+- Player clamps to top 80% of viewport (dynamic viewport size)
+- RESPAWN_POSITION = Vector2(540, 1400)
+
+### UI Layout (current + reserved)┌─────────────────────────┐
+│  Boss HP bar (reserved) │  ← Session 3.x
+├─────────────────────────┤
+│                         │
+│    GAME AREA (80%)      │
+│                         │
+├─────────────────────────┤
+│  HP bar + Lives         │  ← move here future session
+│  4 action buttons       │  ← reserved Session 4.x
+├─────────────────────────┤
+│  CONTROL STRIP (20%)    │  ← built Session 2.2
+│  touchpad + info        │
+└─────────────────────────┘
 
 ### Signal Flow Rule
 - Signals travel **upward** (child → parent/manager)
@@ -124,16 +140,13 @@ Game (scene) — res://scenes/game.tscn
 - GameManager is coordinator only — thin orchestrator, does not implement domain logic
 - Domain managers own their logic: SpellComposer, PlayerInventory, SummonManager, TomeManager, ProgressionManager
 
-### Collision Layers
-```
-Layer 1 — Player physical body
+### Collision LayersLayer 1 — Player physical body
 Layer 2 — Enemy physical body
 Layer 3 — Player hurtbox (Area2D)
 Layer 4 — Enemy hurtbox (Area2D)
 Layer 5 — Spell projectiles (Area2D)
 Layer 6 — Element drops (Area2D)
 Layer 7 — Screen boundaries
-```
 
 ### Data Pattern
 - **CSV files** = master spell data. `res://data/spell_elements.csv` — edited in Google Sheets only, never by Codex.
@@ -142,15 +155,13 @@ Layer 7 — Screen boundaries
 - Always `duplicate()` resources before modifying per-instance values.
 
 ### Game States
-```gdscript
-enum GameState {
-    SCROLLING,
-    BOSS_PREP,
-    BOSS_FIGHT,
-    BOSS_METRICS,
-    GAME_OVER
+```gdscriptenum GameState {
+SCROLLING,
+BOSS_PREP,
+BOSS_FIGHT,
+BOSS_METRICS,
+GAME_OVER
 }
-```
 
 ---
 
@@ -169,16 +180,12 @@ Each spell is composed from 3 element slots + delivery:
 
 **7 elements:** Fire, Ice, Earth, Thunder, Water, Holy, Dark
 
-**Damage formula:**
-```
-final_dmg = item_base_dmg × elemental_dmgmult × weakness_mult × emp_dmgmult × enc_dmgmult × buff_debuff_mult
-```
+**Damage formula:**final_dmg = item_base_dmg × elemental_dmgmult × weakness_mult × emp_dmgmult × enc_dmgmult × buff_debuff_mult
 
 **All spell data lives in `res://data/spell_elements.csv`** — 49 rows, one per element/position/target combination. SpellComposer parses this on _ready().
 
 **SpellData fields (current):**
-```gdscript
-@export var spell_name: String
+```gdscript@export var spell_name: String
 @export var elemental_element: String
 @export var empowerment_element: String
 @export var enchantment_element: String
@@ -192,62 +199,73 @@ final_dmg = item_base_dmg × elemental_dmgmult × weakness_mult × emp_dmgmult �
 @export var projectile_speed: float
 @export var on_hit_effects: Array[Dictionary]
 @export var self_effects: Array[Dictionary]
-```
 
 **Key APIs:**
-```gdscript
-SpellComposer.compose_spell(elemental, empowerment, enchantment, delivery, target) -> SpellData
+```gdscriptSpellComposer.compose_spell(elemental, empowerment, enchantment, delivery, target) -> SpellData
 SpellComposer.get_weakness_multiplier(attacker, defender) -> float
 SpellComposer.is_stop_cast(element) -> bool  # true for holy/dark
 SpellComposer.get_summon_data(element) -> Dictionary
 SpellCaster.refresh_spell(elemental, empowerment, enchantment, delivery, target) -> void
 PlayerInventory.add_element(element) -> void
 PlayerInventory.get_scaling_multiplier(element) -> float  # 1.0 + count * 0.02
-```
 
 **Holy/Dark special:** These elements do NOT auto-cast. They fire the moment the player stops moving, gated by cooldown.
 
-**Weakness wheel:**
-```
-Fire → Ice → Earth → Thunder → Water → Fire
+**Weakness wheel:**Fire → Ice → Earth → Thunder → Water → Fire
 Holy ↔ Dark
 Weakness = ×1.2, Resist = ×0.8, Neutral = ×1.0
-```
 
 ### Summon System (Session 2.1 stub — full AI in 2.3)
 
 One summon active at a time, independent of spell slots. All players have a summon. Summons follow the player, mimic slot 1 attacks, have HP and recharge on death.
 
-```gdscript
-SummonManager.initialize(player: Node2D) -> void  # call from player _ready()
+```gdscriptSummonManager.initialize(player: Node2D) -> void
 SummonManager.spawn_summon(element: String) -> void
 SummonManager.despawn_summon() -> void
 SummonManager.get_summon_stat(key: String) -> Variant
-SummonManager.is_recharged() -> bool  # added in Session 2.2
-```
+SummonManager.is_recharged() -> bool
+SummonManager.get_recharge_remaining() -> float
 
 Summon recharge times: most = 60s, Stormspirit (Thunder) = 20s.
 
-### Tome and Page System (Session 2.2 — next)
+### Tome and Page System (Session 2.2 — complete)
 
-Players hold a Tome with up to 10 Pages. Each Page = 4 spell slots + 1 summon + 2 ultimates. Pages can be flipped mid-combat. Page flip is gated by: max(longest spell cd in current page, summon recharge remaining).
+Players hold a Tome with up to 8 Pages. Each Page = 4 spell slots + 1 summon + 2 ultimates. Pages saved to disk, persist across runs and restarts.
 
-```gdscript
-TomeManager.can_flip_page() -> bool
-TomeManager.flip_to_page(index: int) -> void
+**Page flip gesture:** press left 0-10% or right 90-100% of control strip → 3x3 grid appears centre screen → drag into middle zone → direction determines page → release confirms. No pause.
+
+**Escape menu (CraftingUI):** full crafting workshop. Pauses game. Rename, delete, create pages (up to 8). Edit slot 0 elements. Set active page. Stats panel shows live CD, budget, dmgmult.
+
+**Control strip:** bottom 20% of screen always visible. Shows active page name, spell CD, summon recharge status. Touchpad lives here.
+
+```gdscriptTomeManager.flip_to_page(index: int) -> void
+TomeManager.can_flip_page(target_index: int = -1) -> bool
 TomeManager.save_page(index: int, page: PageData) -> void
+TomeManager.get_page(index: int) -> PageData
 TomeManager.get_active_page() -> PageData
-```
+TomeManager.add_page() -> void
+TomeManager.delete_page(index: int) -> void
+TomeManager.rename_page(index: int, new_name: String) -> void
+CraftingUI.open_ui() -> void
+CraftingUI.close_ui() -> void
+
+**PageData resource:**
+```gdscriptclass_name PageData extends Resource
+@export var page_name: String
+@export var slots: Array[Dictionary]  # {elemental, empowerment, enchantment, delivery, target}
+@export var summon_element: String
+@export var ult1: String
+@export var ult2: String
+func ensure_slots(count: int = 4) -> void
+static func make_default_slot() -> Dictionary
 
 ### Life System (Session 1.4 — complete)
 
 ProgressionManager (autoload) owns lives, current_hp, max_hp. 3 lives total. On death: lose 1 life, respawn, screen clears. All 3 lost = game over.
 
-```gdscript
-get_node_or_null("/root/ProgressionManager").take_damage(amount)
+```gdscriptget_node_or_null("/root/ProgressionManager").take_damage(amount)
 get_node_or_null("/root/ProgressionManager").heal(amount)
 get_node_or_null("/root/ProgressionManager").reset_run()
-```
 
 ### Progression
 Levels 1-6, unlocked by beating bosses. No stat inflation — unlocks = more spell slots and ultimate. Level 5 = Ultimate unlock. Level 6 = Ultimate upgrade. Summon slot always available.
@@ -265,7 +283,7 @@ Scrolling stops → arena forms → Preparation Phase (relearn allowed) → Boss
 2. **Shooter** — fires projectiles at player, forces dodging (Session 2.3)
 3. **Tank** — slow, high HP, blocks progression (Session 2.3)
 
-**Enemy status methods (implemented in Session 2.3):**
+**Enemy status methods:**
 apply_burn ✅ | apply_slow ⬜ | apply_stagger ⬜ | apply_brittle ⬜ | apply_chain ⬜ | apply_pushback ⬜ | apply_blind ⬜ | execute ⬜ | get_element ⬜ | apply_wet ⬜ | apply_corruption ⬜ | apply_chill ⬜
 
 All unimplemented methods are guarded by `has_method()` in spell_projectile.gd — silently skip, no crash.
@@ -281,23 +299,28 @@ All unimplemented methods are guarded by `has_method()` in spell_projectile.gd �
 
 ---
 
-## Folder Structure
-```
-res://
+## Folder Structureres://
 ├── data/
-│   └── spell_elements.csv      # master spell data — Google Sheets only
+│   └── spell_elements.csv
 ├── scenes/
 │   ├── game.tscn
 │   ├── player.tscn
 │   ├── enemies/
 │   ├── ui/
+│   │   ├── crafting_ui.tscn
+│   │   ├── PageFlipWidget.tscn
+│   │   └── control_strip.tscn
 │   └── boss/
 ├── scripts/
 │   ├── managers/
 │   │   ├── spell_composer.gd
 │   │   ├── player_inventory.gd
 │   │   ├── summon_manager.gd
-│   │   └── tome_manager.gd     # Session 2.2
+│   │   └── tome_manager.gd
+│   ├── ui/
+│   │   ├── crafting_ui.gd
+│   │   ├── page_flip_widget.gd
+│   │   └── control_strip.gd
 │   ├── enemies/
 │   │   └── enemy.gd
 │   └── spells/
@@ -305,16 +328,7 @@ res://
 │       ├── spell_caster.gd
 │       └── spell_projectile.gd
 ├── resources/
-│   ├── spells/
-│   ├── enemies/
-│   └── levels/
 └── assets/
-    ├── sprites/
-    ├── audio/
-    │   ├── sfx/
-    │   └── music/
-    └── placeholders/
-```
 
 ---
 
@@ -325,12 +339,13 @@ res://
 4. Use `get_node_or_null("/root/NodeName")` — never bare autoload globals
 5. Verify output uses Godot 4 syntax before accepting
 6. Never modify `res://data/spell_elements.csv` — read only
+7. Never rewrite .tscn files — UID references break. Edit scripts only, make scene changes in Godot editor.
 
 ---
 
 ## Files in This Project Root
 - `context.md` — this file, read first every session
 - `design.md` — full game design document
-- `systems.md` — technical decisions log (source of truth for how things are built)
+- `systems.md` — technical decisions log
 - `session_plan.md` — all session prompts and status tracker
 - `feedback.md` — partner playtesting notes
