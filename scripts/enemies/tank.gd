@@ -12,6 +12,7 @@ signal died
 @export var is_boss: bool = false
 
 const DESPAWN_Y := 1980.0
+const DROP_CHANCE: float = 0.20
 
 var player_ref: Node2D
 var current_hp: float
@@ -138,10 +139,23 @@ func take_damage(amount: float) -> void:
 	if current_hp <= 0.0:
 		_spawn_death_particles()
 		died.emit()
+		spawn_drop()
 		call_deferred("queue_free")
 		return
 
 	_play_hit_flash()
+
+
+func spawn_drop() -> void:
+	if randf() > DROP_CHANCE:
+		return
+	var drop_scene = load("res://scenes/element_drop.tscn")
+	if drop_scene == null:
+		return
+	var drop = drop_scene.instantiate()
+	drop.element = element
+	drop.position = global_position
+	get_tree().current_scene.add_child(drop)
 
 
 func _spawn_damage_number(amount: float, is_crit: bool) -> void:

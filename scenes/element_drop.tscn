@@ -1,0 +1,14 @@
+[gd_scene format=3 uid="uid://bqb5ylpftjb6s"]
+
+[ext_resource type="Script" uid="uid://bc5yf7ooy4c0u" path="res://scripts/element_drop.gd" id="1_mj41f"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_qgrof"]
+radius = 16.0
+
+[node name="ElementDrop" type="Area2D" unique_id=916291094]
+collision_layer = 32
+collision_mask = 4
+script = ExtResource("1_mj41f")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1621367886]
+shape = SubResource("CircleShape2D_qgrof")

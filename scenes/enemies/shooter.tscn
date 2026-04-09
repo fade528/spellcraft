@@ -4,3 +4,4 @@
 
 [node name="Shooter" type="CharacterBody2D" unique_id=600992475]
 script = ExtResource("1_tuqsv")
+element = "thunder"

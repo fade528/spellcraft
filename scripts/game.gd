@@ -93,6 +93,11 @@ func _on_game_child_entered_tree(node: Node) -> void:
 	if node.has_signal("died") and not node.is_connected("died", died_callable):
 		node.connect("died", died_callable)
 
+	if node is Area2D and node.has_signal("collected") and node.scene_file_path == "res://scenes/element_drop.tscn":
+		var collected_callable := Callable(self, "_on_element_collected").bind(node.global_position)
+		if not node.is_connected("collected", collected_callable):
+			node.connect("collected", collected_callable)
+
 
 func _on_projectile_child_entered_tree(node: Node) -> void:
 	var hit_callable := Callable(self, "_on_spell_hit")
@@ -106,6 +111,22 @@ func _on_spell_hit(_target: Node, _damage: float) -> void:
 
 func _on_enemy_died() -> void:
 	_play_sfx(enemy_death_sfx)
+
+
+func _on_element_collected(element_name: String, drop_position: Vector2) -> void:
+	_spawn_element_label("+" + element_name, drop_position)
+
+
+func _spawn_element_label(text: String, world_pos: Vector2) -> void:
+	var lbl := Label.new()
+	lbl.text = text
+	lbl.add_theme_font_size_override("font_size", 36)
+	lbl.position = world_pos + Vector2(-30, -20)
+	add_child(lbl)
+	var tween := create_tween()
+	tween.tween_property(lbl, "position:y", lbl.position.y - 40.0, 0.5)
+	tween.parallel().tween_property(lbl, "modulate:a", 0.0, 0.5)
+	tween.tween_callback(lbl.queue_free)
 
 
 func _play_sfx(player_node: AudioStreamPlayer) -> void:

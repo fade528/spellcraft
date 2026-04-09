@@ -1,5 +1,8 @@
 extends Node
 
+signal summon_hp_changed(current: float, maximum: float)
+signal summon_recharge_tick(seconds_remaining: float)
+
 const PROJECTILE_SCENE = preload("res://scenes/spell_projectile.tscn")
 const TRAIL_RECORD_DIST: float = 8.0
 const TRAIL_FOLLOW_DIST: float = 60.0
@@ -8,8 +11,10 @@ var active_summon: Node2D = null
 var _summon_data: Dictionary = {}
 var _player_ref: Node2D = null
 var _recharge_timer: float = 0.0
+var _recharge_display_timer: float = 0.0
 var _current_element: String = ""
 var _summon_hp: float = 30.0
+var _max_hp: float = 30.0
 var _attack_spell = null
 var _attack_cooldown: float = 3.0
 var _attack_timer_elapsed: float = 0.0
@@ -71,7 +76,9 @@ func spawn_summon(element: String) -> void:
 		var hp_val = _summon_data.get("hp", 30.0)
 		if hp_val is String:
 			hp_val = hp_val.to_float() if hp_val.is_valid_float() else 30.0
-		_summon_hp = float(hp_val)
+		_max_hp = float(hp_val)
+		_summon_hp = _max_hp
+		summon_hp_changed.emit(_summon_hp, _max_hp)
 		summon_root.add_to_group("summon")
 
 
@@ -84,21 +91,25 @@ func set_attack_spell(spell) -> void:
 func _on_summon_hit(area: Area2D) -> void:
 	if _summon_invincible:
 		return
-	_summon_hp -= 5.0
+	take_summon_damage(5.0)
 	_summon_invincible = true
 	_recharge_timer = 1.0
-	if _summon_hp <= 0.0:
-		call_deferred("despawn_summon")
 
 
 func _process(delta: float) -> void:
 	if active_summon == null or not is_instance_valid(active_summon):
 		if _recharge_timer > 0.0:
 			_recharge_timer -= delta
+			_recharge_display_timer += delta
+			if _recharge_display_timer >= 1.0:
+				summon_recharge_tick.emit(max(_recharge_timer, 0.0))
+				_recharge_display_timer = 0.0
 			if _recharge_timer <= 0.0:
 				_recharge_timer = 0.0
+				_recharge_display_timer = 0.0
 				if _current_element != "":
 					spawn_summon(_current_element)
+					summon_recharge_tick.emit(0.0)
 
 	if active_summon != null and is_instance_valid(active_summon):
 		if _player_ref != null and is_instance_valid(_player_ref):
@@ -130,13 +141,11 @@ func _process(delta: float) -> void:
 					enemy.global_position)
 				if dist <= 300.0:
 					_summon_invincible = true
-					_summon_hp -= 5.0
+					take_summon_damage(5.0)
 					var t := get_tree().create_timer(1.0)
 					t.timeout.connect(func() -> void:
 						_summon_invincible = false
 					)
-					if _summon_hp <= 0.0:
-						call_deferred("despawn_summon")
 					break
 
 		_attack_timer_elapsed += delta
@@ -150,7 +159,7 @@ func _fire_summon_attack() -> void:
 		return
 
 	var nearest: Node2D = null
-	var nearest_dist: float = 350.0
+	var nearest_dist: float = 2000.0
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		if not is_instance_valid(enemy):
 			continue
@@ -184,6 +193,14 @@ func despawn_summon() -> void:
 	if recharge is String:
 		recharge = recharge.to_float() if recharge.is_valid_float() else 60.0
 	_recharge_timer = float(recharge)
+	_recharge_display_timer = 0.0
+
+
+func take_summon_damage(amount: float) -> void:
+	_summon_hp -= amount
+	summon_hp_changed.emit(_summon_hp, _max_hp)
+	if _summon_hp <= 0.0:
+		call_deferred("despawn_summon")
 
 
 func is_recharged() -> bool:

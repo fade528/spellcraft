@@ -408,12 +408,14 @@ res://
 │   ├── enemies/
 │   │   ├── shooter.tscn
 │   │   └── tank.tscn
+│   ├── element_drop.tscn      ← NEW
 │   ├── ui/
 │   │   ├── crafting_ui.tscn
 │   │   ├── PageFlipWidget.tscn
 │   │   └── control_strip.tscn
 │   └── boss/
 ├── scripts/
+│   ├── element_drop.gd        ← NEW
 │   ├── managers/
 │   │   ├── spell_composer.gd
 │   │   ├── player_inventory.gd
@@ -456,3 +458,24 @@ res://
 - `systems.md` — technical decisions log
 - `session_plan.md` — all session prompts and status tracker
 - `feedback.md` — partner playtesting notes
+
+**Session 2.4 complete:** Element drop system (20% drop rate, coloured orbs, player collection, floating label), summon HP bar + recharge display in ControlStrip, element counter HUD (7 school swatches with live counts).
+
+**Next:** Session 2.5 — Mana/School system architecture. All drops become generic mana orbs allocated into elemental schools. Schools gate spell casting. Specs system for new player onboarding.
+
+### Element Drop System (Session 2.4 — complete)
+- Enemies drop element orbs at 20% chance on death
+- res://scenes/element_drop.tscn — Area2D, Layer 6, Mask 3
+- res://scripts/element_drop.gd — @export element: String, 8s lifetime
+- spawn_drop() on all three enemy types
+- On collect: PlayerInventory.add_element(element), floating "+element" label
+- game.gd handles signal connection via child_entered_tree
+
+### Summon HP Bar (Session 2.4 — complete)
+SummonManager signals:
+- summon_hp_changed(current: float, maximum: float)
+- summon_recharge_tick(seconds_remaining: float)
+ControlStrip connects both, toggles HP bar / recharge label at y=212 in StripPanel.
+
+### Element Counter HUD (Session 2.4 — complete)
+7 coloured swatches in ControlStrip at y=256, live counts from PlayerInventory.element_counts.

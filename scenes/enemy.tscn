@@ -1,6 +1,6 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene format=3 uid="uid://ci1ctouypbccl"]
 
-[ext_resource type="Script" path="res://scripts/enemy.gd" id="1_0u6ps"]
+[ext_resource type="Script" uid="uid://b3l3yvco401m0" path="res://scripts/enemy.gd" id="1_0u6ps"]
 
 [sub_resource type="CircleShape2D" id="CircleShape2D_6rt1h"]
 radius = 28.0
@@ -8,24 +8,24 @@ radius = 28.0
 [sub_resource type="CircleShape2D" id="CircleShape2D_2g6e5"]
 radius = 30.0
 
-[node name="Enemy" type="CharacterBody2D"]
-script = ExtResource("1_0u6ps")
+[node name="Enemy" type="CharacterBody2D" unique_id=1349882375]
 collision_layer = 2
-collision_mask = 1
+script = ExtResource("1_0u6ps")
+element = "fire"
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=680601139]
 shape = SubResource("CircleShape2D_6rt1h")
 
-[node name="EnemySprite" type="ColorRect" parent="."]
+[node name="EnemySprite" type="ColorRect" parent="." unique_id=81976410]
 offset_left = -28.0
 offset_top = -28.0
 offset_right = 28.0
 offset_bottom = 28.0
 color = Color(0.93, 0.26, 0.35, 1)
 
-[node name="Hurtbox" type="Area2D" parent="."]
+[node name="Hurtbox" type="Area2D" parent="." unique_id=1853226576]
 collision_layer = 8
 collision_mask = 16
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox"]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="Hurtbox" unique_id=1968564055]
 shape = SubResource("CircleShape2D_2g6e5")

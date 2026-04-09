@@ -604,3 +604,46 @@ ControlStrip.update_lives(count: int) -> void
 Auto-wired to ProgressionManager signals `hp_changed` and `lives_changed` in `_ready()`.
 
 **Note:** Player clamp remains at 80% (`vp.y * 0.80`). Touchpad activation remains at 80%. Players can currently walk into the action button zone — address in a future session if needed.
+
+### Element Drop System (Session 2.4)
+**Date:** 2026-04-10
+**Decision:** Enemies drop element orbs on death at 20% chance. Orb is Area2D (Layer 6, Mask 3), 16×16 ColorRect coloured by element, 8s lifetime. Player hurtbox (Layer 3) collection triggers PlayerInventory.add_element() and floating "+element" label.
+**Implementation:**
+- res://scenes/element_drop.tscn — Area2D root, CircleShape2D radius 16
+- res://scripts/element_drop.gd — @export element, colour map, area_entered detection
+- spawn_drop() added to enemy.gd, shooter.gd, tank.gd — called on death before queue_free
+- game.gd _on_game_child_entered_tree detects element_drop.tscn nodes, connects collected signal
+- Floating label spawned in game.gd _spawn_element_label()
+**Known fix pending:** collision_mask must be set in code to `1 << 2` — editor value was overwritten by `collision_mask = 0` in _ready(). Fixed in element_drop.gd.
+**Notes:** element export defaults to "none" on all three enemy scenes — set to real elements in inspector. DROP_CHANCE const = 0.20.
+
+---
+
+### Summon HP Bar + Recharge Display (Session 2.4)
+**Date:** 2026-04-10
+**Decision:** SummonManager emits two signals: summon_hp_changed(current, maximum) and summon_recharge_tick(seconds_remaining). ControlStrip connects to both and toggles between HP bar and recharge label.
+**Implementation:**
+- summon_hp_changed emitted in spawn_summon() and take_summon_damage()
+- summon_recharge_tick emitted every 1s via _recharge_display_timer accumulator in _process(), and once at 0.0 on respawn
+- control_strip.gd _build_summon_status() creates ProgressBar + Label at y=212, only one visible at a time
+**Notes:** HP and recharge values are CSV-driven via spell_elements.csv cd and hp fields. 60s default recharge fallback if field missing.
+
+---
+
+### Element Counter HUD (Session 2.4)
+**Date:** 2026-04-10
+**Decision:** 7 coloured swatches with counters displayed in ControlStrip below summon bar at y=256/288. Reads from PlayerInventory.element_counts every frame.
+**Colours:** fire=red, ice=light blue, earth=brown, water=dark blue, thunder=yellow, holy=white, dark=purple
+**Implementation:**
+- control_strip.gd _build_element_counters() builds 7 column layout at ~154px per column
+- _element_count_labels Dictionary keyed by element name
+- update_element_counts() called from _process(), reads inv.element_counts directly
+**Notes:** Variable is element_counts (no underscore) in player_inventory.gd. Dark swatch uses purple Color(0.5,0,0.8) for visibility against dark background.
+
+---
+
+### Mana/School System — Architecture Planned (Session 2.4)
+**Date:** 2026-04-10
+**Decision:** Deferred to Session 2.5+. Design pivot: all drops become generic mana orbs, allocated into elemental schools. Schools gate spell casting (0 allocation = cannot cast). Specs provide auto-allocation ratios + preferred spell loadouts for new players. Archmage mode = freeform manual allocation.
+**Reason:** Significant multi-session work. Current element_counts system remains in place as placeholder.
+**Forward:** Requires SpecManager autoload, mana pool in PlayerInventory, school gating in SpellCaster, reallocation UI in CraftingUI.

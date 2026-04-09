@@ -11,6 +11,9 @@ const SCREEN_HEIGHT := 1920.0
 
 var _hp_bar: ProgressBar
 var _hp_label: Label
+var _summon_hp_bar: ProgressBar
+var _summon_recharge_label: Label
+var _element_count_labels: Dictionary = {}
 var _life_rects: Array[ColorRect] = []
 var _action_buttons: Array[ColorRect] = []
 var _boss_bar_container: Control
@@ -23,6 +26,8 @@ func _ready() -> void:
 	strip_panel.color = Color(0.05, 0.05, 0.1, 0.85)
 
 	_build_hp_row()
+	_build_summon_status()
+	_build_element_counters()
 	_build_action_buttons()
 	_build_boss_bar()
 
@@ -64,6 +69,11 @@ func _ready() -> void:
 		elif "lives" in pm:
 			update_lives(int(pm.lives))
 
+	var sm = get_node_or_null("/root/SummonManager")
+	if sm:
+		sm.summon_hp_changed.connect(_on_summon_hp_changed)
+		sm.summon_recharge_tick.connect(_on_summon_recharge_tick)
+
 	_refresh_all()
 	var hud = get_tree().get_first_node_in_group("hud")
 	if hud == null:
@@ -98,6 +108,59 @@ func _build_hp_row() -> void:
 		life_rect.color = Color(0.9, 0.2, 0.3)
 		strip_panel.add_child(life_rect)
 		_life_rects.append(life_rect)
+
+
+func _build_summon_status() -> void:
+	_summon_hp_bar = ProgressBar.new()
+	_summon_hp_bar.position = Vector2(140.0, 212.0)
+	_summon_hp_bar.size = Vector2(800.0, 28.0)
+	_summon_hp_bar.show_percentage = false
+	_summon_hp_bar.min_value = 0.0
+	_summon_hp_bar.max_value = 100.0
+	_summon_hp_bar.value = 100.0
+	_summon_hp_bar.visible = false
+	strip_panel.add_child(_summon_hp_bar)
+
+	_summon_recharge_label = Label.new()
+	_summon_recharge_label.position = Vector2(140.0, 212.0)
+	_summon_recharge_label.size = Vector2(800.0, 28.0)
+	_summon_recharge_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_summon_recharge_label.add_theme_font_size_override("font_size", 28)
+	_summon_recharge_label.visible = false
+	strip_panel.add_child(_summon_recharge_label)
+
+
+func _build_element_counters() -> void:
+	var elements := [
+		{"name": "fire", "color": Color(1.0, 0.2, 0.2)},
+		{"name": "ice", "color": Color(0.4, 0.8, 1.0)},
+		{"name": "earth", "color": Color(0.6, 0.3, 0.1)},
+		{"name": "water", "color": Color(0.0, 0.2, 0.8)},
+		{"name": "thunder", "color": Color(1.0, 1.0, 0.0)},
+		{"name": "holy", "color": Color(1.0, 1.0, 1.0)},
+		{"name": "dark", "color": Color(0.5, 0.0, 0.8)},
+	]
+	var column_width := SCREEN_WIDTH / float(elements.size())
+
+	for i in range(elements.size()):
+		var element_data: Dictionary = elements[i]
+		var center_x := column_width * (i + 0.5)
+
+		var swatch := ColorRect.new()
+		swatch.size = Vector2(28.0, 28.0)
+		swatch.position = Vector2(center_x - 14.0, 256.0)
+		swatch.color = element_data["color"]
+		strip_panel.add_child(swatch)
+
+		var count_label := Label.new()
+		count_label.position = Vector2(center_x - 14.0, 288.0)
+		count_label.size = Vector2(28.0, 24.0)
+		count_label.text = "0"
+		count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		count_label.add_theme_font_size_override("font_size", 20)
+		strip_panel.add_child(count_label)
+
+		_element_count_labels[element_data["name"]] = count_label
 
 
 func _build_action_buttons() -> void:
@@ -161,6 +224,7 @@ func _build_boss_bar() -> void:
 func _process(_delta: float) -> void:
 	_refresh_spell_cd()
 	_refresh_summon()
+	update_element_counts()
 
 
 func _refresh_all() -> void:
@@ -226,6 +290,34 @@ func update_lives(count: int) -> void:
 		_life_rects[i].visible = i < count
 
 
+func update_element_counts() -> void:
+	var inv = get_node_or_null("/root/PlayerInventory")
+	if inv == null:
+		return
+	for element in _element_count_labels:
+		var count = 0
+		if "element_counts" in inv:
+			count = inv.element_counts.get(element, 0)
+		_element_count_labels[element].text = str(count)
+
+
+func _show_summon_active(current: float, maximum: float) -> void:
+	_summon_hp_bar.visible = true
+	_summon_recharge_label.visible = false
+	_summon_hp_bar.max_value = maximum
+	_summon_hp_bar.value = current
+
+
+func _show_summon_recharging(seconds: float) -> void:
+	if seconds <= 0.0:
+		_summon_hp_bar.visible = false
+		_summon_recharge_label.visible = false
+		return
+	_summon_hp_bar.visible = false
+	_summon_recharge_label.visible = true
+	_summon_recharge_label.text = "Recharging: %ds" % int(seconds)
+
+
 func _on_hp_changed(current: float, maximum: float) -> void:
 	update_hp(current, maximum)
 
@@ -236,3 +328,11 @@ func _on_lives_changed(count: int) -> void:
 
 func _on_page_flipped(_index: int) -> void:
 	_refresh_page()
+
+
+func _on_summon_hp_changed(current: float, maximum: float) -> void:
+	_show_summon_active(current, maximum)
+
+
+func _on_summon_recharge_tick(seconds: float) -> void:
+	_show_summon_recharging(seconds)

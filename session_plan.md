@@ -100,26 +100,46 @@ Key decisions:
 
 ---
 
-### Session 2.4 — Element Drop System
-**Status: ⬜ Pending**
+## Session 2.4 — Element Drop System + Summon HUD ✅ COMPLETE
+Date: 2026-04-10
+All goals delivered:
+- Element drop system working (20% drop, collect, floating label)
+- Summon HP bar + recharge display in ControlStrip
+- Element counter HUD (7 swatches, live counts)
+- Mana/School system designed, deferred to 2.5
 
-```
-Read context.md and systems.md first. Build element
-drop system — enemies drop elements on death,
-ElementDrop scene spawns at position, player
-collects via Area2D overlap, updates PlayerInventory.
+---
 
-Each enemy has an exported element_drop: String.
-ElementDrop is a small coloured circle on Layer 6.
-Player pickup via Area2D overlap.
-Calls PlayerInventory.add_element(element).
+## Session 2.5 — Mana & School System (NEXT)
 
-Godot 4 GDScript.
-Current scene tree: [paste]
-Relevant code: [paste enemy.gd, player_inventory.gd]
-```
+Context: Design pivot from element drops to universal mana drops allocated into elemental schools.
 
-**Delivers:** Enemies drop elements, player collects, scaling multiplier increases
+Goals:
+1. MANA DROP SYSTEM
+   - Replace element_drop with mana_drop (single neutral orb, white/blue colour)
+   - PlayerInventory: add mana_pool (total), school_allocation Dict, unallocated_mana
+   - add_mana() replaces add_element()
+   - get_school_tier(school) -> int returns allocation count
+   - get_school_multiplier(school) -> float returns 1.0 + tier * 0.05
+
+2. SCHOOL GATING
+   - SpellCaster checks get_school_tier(element) > 0 before casting
+   - Greyed out indicator in ControlStrip if school locked
+
+3. SPEC SYSTEM
+   - SpecData resource: spec_name, allocation_ratios Dict, preferred_slots Array, preferred_ults Array
+   - SpecManager autoload: apply_spec(spec), get_active_spec(), clear_spec() (Archmage mode)
+   - Auto-allocation: on mana pickup, distribute per spec ratios
+   - Spec selection screen or CraftingUI tab
+
+4. REALLOCATION UI
+   - CraftingUI tab for manual school allocation
+   - Show current tier per school, unallocated mana pool
+   - +/- buttons per school
+
+Pre-session requirements:
+- Partner defines 3-4 Specs with allocation ratios and preferred spell IDs
+- Agree tier scaling formula (currently proposed: 1.0 + tier * 0.05)
 
 ---
 

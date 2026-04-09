@@ -516,6 +516,21 @@ These tags affect weakness calculations — a Wet enemy hit by Thunder takes bon
 
 ---
 
+## Mana & School System
+
+All enemy drops are generic Mana Orbs. On collection, mana is allocated into elemental Schools based on the player's active Spec, or manually via the Composer.
+
+**Schools:** Fire, Ice, Earth, Water, Thunder, Holy, Dark
+
+**School Tier:** Number of mana allocated to that school. Minimum 1 to unlock casting. Each tier increases spell effectiveness: base × (1.0 + tier × 0.05).
+
+**Specs:** Predefined allocation templates with preferred spell loadouts. Designed for new players — the game proposes spells and allocates mana automatically. Players can switch Spec on any pause.
+
+**Archmage Mode:** No Spec. Full manual allocation. For experienced players who want to build freely.
+
+**Spell Gating:** A school spell cannot be cast with 0 allocation. This makes the first mana pickup into a school feel meaningful and forces intentional build decisions.
+
+
 # ⚡ Difficulty Scaling
 
 ## Normal Levels 1–6
@@ -609,6 +624,7 @@ These tags affect weakness calculations — a Wet enemy hit by Thunder takes bon
 * Post launch
 
 ---
+
 
 # 🧠 Final Note
 

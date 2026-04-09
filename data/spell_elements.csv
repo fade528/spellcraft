@@ -5,46 +5,46 @@ A0003,Fire,Enchantment,enemy,explosion,150,0.3,,,,1,cast,0,2,apply a small aoe w
 A0004,Fire,Elemental,self,resist_bonus,ice,0.8,,,,0,passive,1,1,"[value1] attacks deal [value2] to player, otherwise deal [dmgmult] to player"
 A0005,Fire,Enchantment,self,killfuel,0.05,,,,,0,passive,0,3,each enemy killed reduces the cd of remaining spells by [value1]
 A0006,Fire,Empowerment,self,overheat,3,,,,,0,passive,1.5,4,"every [value1] number of spells have been cast, the next spell will be amped by [dmgmult]"
-A0007,Fire,Summon,Summon,forgespirits,0.2,0.2,,,,60,recharge,0,5,"summon 2 spirits with [value1] hp and [value2] attack that follows the player, summon attacks always mimic player 1st slot spell effects"
+A0007,Fire,Summon,Summon,forgespirits,0.2,0.2,,,,20,recharge,0,5,"summon 2 spirits with [value1] hp and [value2] attack that follows the player, summon attacks always mimic player 1st slot spell effects"
 B0001,Ice,Elemental,enemy,weakness_bonus,earth,1.2,,,,1,cast,0.9,2.5,"spell dmg against [value1] enemy take additional [value2] dmg, otherwise do [dmgult] dmg"
 B0003,Ice,Empowerment,enemy,brittle,2,1.5,,,,1,cast,0,5,"can only apply to targets with a chilled debuff, will freeze target for [value1] and any dmg is increased by [value2]"
 B0002,Ice,Enchantment,enemy,chilled,0.4,4,,,,1,cast,0,4,"apply a movement slow debuff [value1] for [value2] seconds, chilled opponents are considered ice units"
 B0004,Ice,Elemental,self,resist_bonus,earth,0.8,,,,0,passive,1,1,"[value1] attacks deal [value2] to player, otherwise deal [dmgmult] to player"
 B0005,Ice,Empowerment,self,iceshield,3,0.3,10,,,0,passive,0,3,"after standing still for [value1] seconds, gain a ice barrier to block [value2] of total hp for [value3] seconds"
 B0006,Ice,Enchantment,self,chillaura,0.2,500,,,,0,passive,0,4,apply a [value1] slow to enemies around the player with radius of [value2]
-B0007,Ice,Summon,Summon,icewarden,0.3,0.3,5,500,2,60,recharge,0,5,"summon an ice warden with [value1] hp and [value2] missle attack that follows the player, every [value3] do an aoe frostnova which roots enemies in a [value4] radius for [value5] seconds, enemies hit by frostnova are consideed ice units. , summon attacks always mimic player 1st slot spell effects"
+B0007,Ice,Summon,Summon,icewarden,0.3,0.3,5,500,2,20,recharge,0,5,"summon an ice warden with [value1] hp and [value2] missle attack that follows the player, every [value3] do an aoe frostnova which roots enemies in a [value4] radius for [value5] seconds, enemies hit by frostnova are consideed ice units. , summon attacks always mimic player 1st slot spell effects"
 C0001,Earth,Elemental,enemy,weakness_bonus,thunder,1.2,,,,1,cast,1.1,2.5,"spell dmg against [value1] enemy take additional [value2] dmg, otherwise do [dmgult] dmg"
 C0002,Earth,Empowerment,enemy,rootedpower,2,1.2,,,,0,passive,0,3,"after standing still for [value1] seconds, gain [value2] dmg amp"
 C0003,Earth,Enchantment,enemy,stagger,0.3,3,,,,0,passive,0,5,have a [value1] chance to stun enemies for [value2] seconds
 C0004,Earth,Elemental,self,resist_bonus,thunder,0.8,,,,0,passive,1,1,"[value1] attacks deal [value2] to player, otherwise deal [dmgmult] to player"
 C0005,Earth,Enchantment,self,mudwall,2,600,3,,,5,cast,0,2,"after standing still for [value1] seconds, in the direction you are facing cast a wall which will block enemy projectiles with width [value2] and lasts for [value3] seconds, your own spells can go through it"
 C0006,Earth,Empowerment,self,stoneskin,0.8,,,,,0,passive,0,2,incoming dmg are reduced by [value1]
-C0007,Earth,Summon,Summon,stonegolem,0.5,0.2,,,,60,recharge,0,5,"summon a golem with [value1] hp and [value2] attack that follows the player and stun enemies, , summon attacks always mimic player 1st slot spell effects"
+C0007,Earth,Summon,Summon,stonegolem,0.5,0.2,,,,20,recharge,0,5,"summon a golem with [value1] hp and [value2] attack that follows the player and stun enemies, , summon attacks always mimic player 1st slot spell effects"
 D0001,Thunder,Elemental,enemy,weakness_bonus,water,1.2,,,,0.9,cast,1,2.5,"spell dmg against [value1] enemy take additional [value2] dmg, otherwise do [dmgult] dmg"
 D0002,Thunder,Empowerment,enemy,chain 1,2,,,,,1,cast,0,4,spell now bounce off [value1] more targets
 D0003,Thunder,Enchantment,enemy,chain 2,2,,,,,1,cast,0,4,spell now bounce off [value1] more targets
 D0004,Thunder,Elemental,self,resist_bonus,water,0.8,,,,0,passive,1,1,"[value1] attacks deal [value2] to player, otherwise deal [dmgmult] to player"
 D0005,Thunder,Empowerment,self,overload,1.5,,,,,0,passive,0,3,casting 2 lightning spells in sequence will increase your next spell dmg by [value1]
 D0006,Thunder,Enchantment,self,alacrity,0.2,,,,,0,passive,0,4,player movement speed increase by [value1] and all spells cd reduced by [value1]
-D0007,Thunder,Summon,Summon,stormspirit,0.3,0.4,4,,,20,recharge,0,5,"summon a stormspirit with [value1] hp and [value2] attack that follows the player, upon death it will trigger a [value3] stronger slot 2 spell, summon attacks always mimic player 1st slot spell effects"
+D0007,Thunder,Summon,Summon,stormspirit,0.3,0.4,4,,,10,recharge,0,5,"summon a stormspirit with [value1] hp and [value2] attack that follows the player, upon death it will trigger a [value3] stronger slot 2 spell, summon attacks always mimic player 1st slot spell effects"
 E0001,Water,Elemental,enemy,weakness_bonus,fire,1.2,,,,1,cast,1,2.5,"spell dmg against [value1] enemy take additional [value2] dmg, otherwise do [dmgult] dmg"
 E0002,Water,Empowerment,enemy,splash,300,0.1,,,,1,cast,0,2,"apply a small aoe with radius of [value1] for [value2] dmg, also applies the ""Wet"" debuff, any enemy with this debuff is also considered a water unit"
 E0003,Water,Enchantment,enemy,tidal,500,,,,,1,cast,0,3,apply a push back effect for [value1] distance to the spell
 E0004,Water,Elemental,self,resist_bonus,fire,0.8,,,,0,passive,1,1,"[value1] attacks deal [value2] to player, otherwise deal [dmgmult] to player"
 E0005,Water,Empowerment,self,regen,2,0.05,,,,0,passive,0,5,"after standing still for [value1] seconds, player start to recover [value2] hp every second"
 E0006,Water,Enchantment,self,flowstate,2,0.05,,,,0,passive,0,5,"after moving nonstop for [value1] seconds, player start to recover [value2] hp every second"
-E0007,Water,Summon,Summon,waterelemental,0.3,0.3,,,,60,recharge,0,5,"summon a water elemental with [value1] hp and [value2] attack that follows the player and apply ""wet"" to enemies with its basic missle, summon attacks always mimic player 1st slot spell effects"
+E0007,Water,Summon,Summon,waterelemental,0.3,0.3,,,,20,recharge,0,5,"summon a water elemental with [value1] hp and [value2] attack that follows the player and apply ""wet"" to enemies with its basic missle, summon attacks always mimic player 1st slot spell effects"
 F0001,Holy,Elemental,enemy,weakness_bonus,dark,1.2,,,,1,cast,1.6,2.5,"spell dmg against [value1] enemy take additional [value2] dmg, otherwise do [dmgult] dmg, this spell is NOT autocasted and is cast when the player in move state > stand still state"
 F0002,Holy,Empowerment,enemy,judgement,5,2,,,,1,cast,0,3.5,the same spell is cast again every [value1] seconds with holy power that stuns enemies for [value2] seconds
 F0003,Holy,Enchantment,enemy,radiance,3,,,,,0,passive,0,5,"add a debuff ""blinded"" for [value1] seconds, debuff causes enemy spells not to track onto player"
 F0004,Holy,Elemental,self,consecration,0.05,500,2,,,0,passive,0,1,deals [value1] dmg around the player with radius [value2] every [value3] seconds
 F0005,Holy,Empowerment,self,holylight,3.5,0.2,,,,3,cast,0,5,"after standing for [value1] seconds, heal the player for [value2] of max hp"
 F0006,Holy,Enchantment,self,intervention,120,,,,,120,recharge,0,5,"allow the player to cheat death every [value1] seconds, the iframe will still trigger but hp will not be gained."
-F0007,Holy,Summon,Summon,holyspirit,0.3,0.4,0.05,5,,60,recharge,0,3,"summon a holy spirit with [value1] hp and [value2] attack that follows the player and attack enemies, heals the player [value3] every [value4] seconds, summon attacks always mimic player 1st slot spell effects"
+F0007,Holy,Summon,Summon,holyspirit,0.3,0.4,0.05,5,,20,recharge,0,3,"summon a holy spirit with [value1] hp and [value2] attack that follows the player and attack enemies, heals the player [value3] every [value4] seconds, summon attacks always mimic player 1st slot spell effects"
 G0001,Dark,Elemental,enemy,weakness_bonus,holy,1.2,,,,1,cast,1.6,2.5,"spell dmg against [value1] enemy take additional [value2] dmg, otherwise do [dmgult] dmg, this spell is NOT autocasted and is cast when the player in move state > stand still state"
 G0002,Dark,Empowerment,enemy,execute,0.2,,,,,0,passive,0,4,"[value1] chance to kill mob, does not work on bosses"
 G0003,Dark,Enchantment,enemy,corruption,0.05,2,10,,,1,cast,0,3,"debuff target with ""corruption"", additional spell dmg at [value1] every [value2] seconds for [value3] seconds, corrupted targets are considered dark units"
 G0004,Dark,Elemental,self,bloodpower,0.75,0.5,1.2,1.4,,1,cast,0,5,"staying below [value1] AND above of [value2] of max hp will grant you [value3] dmg boost, staying below [value2] will grant you [value4] dmg boost"
 G0005,Dark,Empowerment,self,soulsiphon,0.03,1.1,,,,2,cast,0,5,"heal player based on [value1] of dmg, amp spells by [value2] on holy units"
 G0006,Dark,Enchantment,self,voidpull,500,,,,,1,cast,0,3,apply a pull back effect for [value1] distance to the spell
-G0007,Dark,Summon,Summon,shadowfiend,0.2,0.5,,,,60,recharge,0,5,"summon a shadowfiend with [value1] hp and [value2] attack that follows the player, has a fear buff, makes non dark/boss units turn away from the fiend. summon attacks always mimic player 1st slot spell effects"
+G0007,Dark,Summon,Summon,shadowfiend,0.2,0.5,,,,20,recharge,0,5,"summon a shadowfiend with [value1] hp and [value2] attack that follows the player, has a fear buff, makes non dark/boss units turn away from the fiend. summon attacks always mimic player 1st slot spell effects"
