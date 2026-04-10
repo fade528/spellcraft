@@ -647,3 +647,153 @@ Auto-wired to ProgressionManager signals `hp_changed` and `lives_changed` in `_r
 **Decision:** Deferred to Session 2.5+. Design pivot: all drops become generic mana orbs, allocated into elemental schools. Schools gate spell casting (0 allocation = cannot cast). Specs provide auto-allocation ratios + preferred spell loadouts for new players. Archmage mode = freeform manual allocation.
 **Reason:** Significant multi-session work. Current element_counts system remains in place as placeholder.
 **Forward:** Requires SpecManager autoload, mana pool in PlayerInventory, school gating in SpellCaster, reallocation UI in CraftingUI.
+
+### Mana Drop System (Session 2.41)
+**Date:** 2026-04-10
+**Decision:** Replaced 7-element coloured orbs with a single generic mana orb. All drops are now identical light-blue ColorRects. PlayerInventory tracks a unified mana_pool and delegates allocation to SpecManager.
+
+**element_drop.gd changes:**
+- Removed @export element and ELEMENT_COLORS
+- Signal changed from `collected(element_name)` to `collected(drop_position: Vector2)`
+- Calls `PlayerInventory.add_mana(1)` instead of `add_element(element)`
+- Visual: Color(0.6, 0.8, 1.0), no element lookup
+
+**enemy.gd / shooter.gd / tank.gd changes:**
+- `drop.element = element` removed from spawn_drop() — property no longer exists
+- `get_tree().current_scene.add_child(drop)` → `get_tree().current_scene.call_deferred("add_child", drop)` — required because spawn_drop() is called from take_damage() inside a physics callback
+
+**game.gd changes:**
+- Connection no longer uses `.bind(node.global_position)` — position now carried by signal itself
+- `_on_element_collected(element_name, drop_position)` → `_on_element_collected(drop_position: Vector2)`
+- Floating label shows "+mana" instead of "+element"
+
+**Rule added:** Always use `call_deferred("add_child", node)` when adding children inside physics callbacks (take_damage, area_entered, etc.)
+
+---
+
+### PlayerInventory Mana API (Session 2.41)
+**Date:** 2026-04-10
+**Decision:** Added mana economy fields and methods to PlayerInventory. Element counts preserved — still used by get_scaling_multiplier() which SpellCaster reads.
+
+**New fields:**
+```gdscript
+var mana_pool: int = 0
+var school_allocation: Dictionary = {}
+var unallocated_mana: int = 0
+```
+
+**New methods:**
+```gdscript
+func add_mana(amount: int) -> void
+    # delegates to SpecManager.allocate_mana_for_pickup()
+    # fallback: adds to unallocated_mana if SpecManager unavailable
+
+func allocate_to_school(school: String, amount: int) -> void
+    # guards: amount > 0, amount <= unallocated_mana
+
+func deallocate_from_school(school: String, amount: int) -> void
+    # removes up to current allocation, returns to unallocated_mana
+
+func get_school_tier(school: String) -> int
+    # returns int(school_allocation.get(school, 0))
+
+func get_school_multiplier(school: String) -> float
+    # returns 1.0 + tier * 0.05
+```
+
+**reset_run()** updated to clear mana_pool, school_allocation, unallocated_mana.
+
+---
+
+### School Gating in SpellCaster (Session 2.41)
+**Date:** 2026-04-10
+**Decision:** SpellCaster silently skips firing if the elemental school has zero allocation. Gate is at the top of _on_cooldown_timer_timeout(), cooldown timer keeps running so the spell fires immediately once school is unlocked.
+
+```gdscript
+func _on_cooldown_timer_timeout() -> void:
+    var _inventory := get_node_or_null("/root/PlayerInventory")
+    if _inventory != null and _inventory.get_school_tier(elemental_element) == 0:
+        return
+    # ... rest of fire logic
+```
+
+**Note:** Only the elemental slot is gated. Empowerment and enchantment elements are not checked — they're modifiers, not gatekeepers.
+
+---
+
+### SpecData Resource (Session 2.41)
+**Date:** 2026-04-10
+**Decision:** Specs are .tres resources stored in res://data/specs/. Three specs created: Pyroclast (fire/thunder), Frostbinder (ice/water), Archmage (empty — manual control).
+
+```gdscript
+class_name SpecData extends Resource
+@export var spec_name: String = ""
+@export var description: String = ""
+@export var allocation_ratios: Dictionary = {}     # {"fire": 0.6, "thunder": 0.4}
+@export var preferred_slots: Array[Dictionary] = [] # [{elemental, empowerment, enchantment, delivery}]
+@export var preferred_ults: Array[String] = []
+```
+
+**Dictionary key casing:** All keys in preferred_slots must be lowercase (elemental, empowerment, enchantment, delivery). Capital E on "Enchantment" will silently fail reads. Enforce this when editing .tres files in the Inspector.
+
+**Spec files:**
+- pyroclast.tres — fire 0.8 / thunder 0.2 (dummy values, partner to tune)
+- frostbinder.tres — ice 0.6 / water 0.4
+- archmage.tres — all empty (allocation_ratios={}, preferred_slots=[], preferred_ults=[])
+
+**Radiant spec deferred** — not yet created. Partner to define holy/dark allocation.
+
+---
+
+### SpecManager Autoload (Session 2.41)
+**Date:** 2026-04-10
+**Decision:** SpecManager is a new autoload registered after TomeManager. Owns active spec state. Handles mana allocation on pickup according to spec ratios.
+
+**Autoload path:** res://scripts/spec_manager.gd
+
+**Key design:**
+- Specs loaded lazily via `load(path)` on apply_spec() — not preloaded at startup
+- Archmage = null spec. is_archmage() returns true when _active_spec is null OR spec_name is "Archmage"
+- allocate_mana_for_pickup() distributes per ratio using floor() for each school except the last which gets the remainder — prevents mana loss from rounding
+
+```gdscript
+SpecManager.apply_spec(spec_name: String) -> void
+SpecManager.clear_spec() -> void
+SpecManager.get_active_spec() -> SpecData
+SpecManager.get_active_spec_name() -> String
+SpecManager.is_archmage() -> bool
+SpecManager.allocate_mana_for_pickup(amount: int) -> void
+```
+
+**SPEC_PATHS const** in spec_manager.gd maps display names to file paths. Add new specs here when created.
+
+---
+
+### ControlStrip Mana Display (Session 2.41)
+**Date:** 2026-04-10
+**Decision:** Replaced element counter swatches (raw counts) with school tier display (T0, T1, etc.) plus a mana summary label.
+
+**Changes to control_strip.gd:**
+- `_element_count_labels` renamed to `_school_tier_labels`
+- `_build_element_counters()` replaced with `_build_mana_display()`
+- `update_element_counts()` replaced with `update_mana_display()`
+- Tier labels show "T0", "T1" etc. (not raw counts)
+- ManaPoolLabel (name node) added at y=320 in StripPanel: "Mana: X | Free: X"
+- `_process()` calls `update_mana_display()` every frame — acceptable polling cost given simplicity
+
+**Colour map preserved** — same 7 school colours as before.
+
+---
+
+### Known Bugs — Deferred to Session 2.42
+**Date:** 2026-04-10
+
+**Bug 1: Spell casting stops on summon death**
+- Symptom: After summon dies, player's spells stop firing
+- Likely cause: SummonManager emitting a signal or calling set_attack_spell(null) that propagates incorrectly into SpellCaster
+- Files to investigate: summon_manager.gd, spell_caster.gd
+
+**Bug 2: Page flip respawns summon**
+- Symptom: Flipping a page while summon is recharging respawns it immediately
+- Likely cause: page_flip_widget.gd or crafting_ui.gd _on_set_active_pressed() calling sm.spawn_summon() without checking is_recharged()
+- Files to investigate: page_flip_widget.gd, crafting_ui.gd (_on_set_active_pressed)

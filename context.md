@@ -1,8 +1,3 @@
-## Session Management
-Each working session is a separate chat. Always open with
-"Read context.md and systems.md first" then the specific task.
-See session_plan.md for the full list of planned sessions.
-
 # Spellcraft Roguelite — Master Context
 
 > Read this first. This file gives you everything needed to assist on this project without reading all other docs.
@@ -51,15 +46,13 @@ Renderer:      Mobile
 
 Phase 2 in progress. Phase 1 (Alpha) is complete — game is playable, APK tested on device.
 
-**Completed:** Player movement, enemy spawning, spell auto-cast, life system, HUD, game over, juice pass, audio, APK.
+**Session 2.41 complete:** Mana economy replacing element drops. All drops are now generic mana orbs. Mana pools in PlayerInventory, school gating in SpellCaster, SpecData resources, SpecManager autoload with auto-allocation. CraftingUI Schools tab + full Spec UI deferred to Session 2.42.
 
-**Session 2.1 complete:** CSV-driven spell combo system built and verified in-engine.
+**Next:** Session 2.42 — CraftingUI redesign. Spec-first two-tab layout (Spec / Tome). Full spec editor with spell slots, school swatches, ult pickers. JSON persistence for specs. Tome page override flag.
 
-**Session 2.2 complete:** Tome + Page system, CraftingUI pause menu, PageFlipWidget edge-swipe gesture, ControlStrip footer, persistent page save/load, rename/delete/set active pages, input zones finalized.
-
-**Session 2.3 complete:** Shooter + Tank enemy variants, all status effects on all enemy types, weighted spawner, full SummonManager AI (trail follow, HP, recharge, auto-respawn, attack), crit pop effect, UI layout with HP/lives/action buttons in control strip area.
-
-**Next:** Session 2.4 — Element Drop System.
+**Known bugs to fix in Session 2.42:**
+1. Spell casting stops when summon dies — likely SummonManager signal or set_attack_spell(null) propagating incorrectly
+2. Page flip respawns summon when it shouldn't — PageFlipWidget or TomeManager not checking summon recharge state
 
 ---
 
@@ -88,6 +81,7 @@ PlayerInventory      res://scripts/managers/player_inventory.gd
 SpellComposer        res://scripts/managers/spell_composer.gd
 SummonManager        res://scripts/managers/summon_manager.gd
 TomeManager          res://scripts/managers/tome_manager.gd
+SpecManager          res://scripts/spec_manager.gd
 ```
 
 ### Scene Structure (actual as built)
@@ -123,6 +117,12 @@ Enemy scenes:
 res://scenes/enemy.tscn       — Chaser
 res://scenes/enemies/shooter.tscn
 res://scenes/enemies/tank.tscn
+
+Data files:
+res://data/spell_elements.csv
+res://data/specs/pyroclast.tres
+res://data/specs/frostbinder.tres
+res://data/specs/archmage.tres
 ```
 
 ### Input Zone Map (bottom 20% control strip)
@@ -155,6 +155,8 @@ Right 90-100% → page flip gesture trigger only
 ├─────────────────────────┤  ← y=1536 (80%)
 │  HP bar  ❤❤❤            │  ← in control strip
 │  page / CD / summon     │
+│  school swatches T0-Tn  │  ← mana display row
+│  Mana: X | Free: X      │
 │  [   touchpad   ]       │
 └─────────────────────────┘  ← y=1920
 ```
@@ -166,7 +168,7 @@ ControlStrip exposes: `update_hp(current, maximum)` and `update_lives(count)`.
 - Signals travel **upward** (child → parent/manager)
 - Direct calls travel **downward** (manager → child)
 - GameManager is coordinator only — thin orchestrator, does not implement domain logic
-- Domain managers own their logic: SpellComposer, PlayerInventory, SummonManager, TomeManager, ProgressionManager
+- Domain managers own their logic: SpellComposer, PlayerInventory, SummonManager, TomeManager, ProgressionManager, SpecManager
 
 ### Collision Layers
 
@@ -176,13 +178,13 @@ Layer 2 — Enemy physical body
 Layer 3 — Player hurtbox (Area2D)
 Layer 4 — Enemy hurtbox (Area2D)
 Layer 5 — Spell projectiles (Area2D)
-Layer 6 — Element drops (Area2D)
+Layer 6 — Mana drops (Area2D)
 Layer 7 — Screen boundaries
 ```
 
 ### Data Pattern
 - **CSV files** = master spell data. `res://data/spell_elements.csv` — edited in Google Sheets only, never by Codex.
-- **Resources (.tres)** = other master data (enemy stats, level configs).
+- **Resources (.tres)** = other master data (spec definitions, enemy stats, level configs). Stored in `res://data/specs/`.
 - **Node variables** = runtime state (current HP, cooldown timers).
 - Always `duplicate()` resources before modifying per-instance values.
 
@@ -211,109 +213,60 @@ Each spell is composed from 3 element slots + delivery:
 | Elemental | Core identity, sets inherent dmgmult |
 | Empowerment | Damage amplification (DoT, chains, execute) |
 | Enchantment | Functions and gimmicks (AoE, pushback, status) |
-| Delivery | How the spell fires (bolt, burst, beam, etc.) |
 
-**7 elements:** Fire, Ice, Earth, Thunder, Water, Holy, Dark
+Delivery types: Bolt, Burst, Beam, Blast, Cleave, Missile, Wall, Utility
 
-**Damage formula:**
-```
-final_dmg = item_base_dmg × elemental_dmgmult × weakness_mult × emp_dmgmult × enc_dmgmult × buff_debuff_mult
-```
+SpellData resource fields: `damage, cooldown, total_cd, dmgmult_chain, total_budget, projectile_speed, effects[]`
 
-**All spell data lives in `res://data/spell_elements.csv`** — 49 rows. SpellComposer parses this on _ready().
-
-**SpellData fields (current):**
-```gdscript
-@export var spell_name: String
-@export var elemental_element: String
-@export var empowerment_element: String
-@export var enchantment_element: String
-@export var combo_name: String
-@export var total_cd: float
-@export var total_budget: float
-@export var delivery_type: String
-@export var dmgmult_chain: float   # composed multiplier
-@export var damage: float          # always 1.0 — use dmgmult_chain
-@export var cooldown: float        # = total_cd
-@export var projectile_speed: float
-@export var on_hit_effects: Array[Dictionary]
-@export var self_effects: Array[Dictionary]
-```
-
-**Key APIs:**
 ```gdscript
 SpellComposer.compose_spell(elemental, empowerment, enchantment, delivery, target) -> SpellData
+SpellComposer.is_stop_cast(element) -> bool
 SpellComposer.get_weakness_multiplier(attacker, defender) -> float
-SpellComposer.is_stop_cast(element) -> bool  # true for holy/dark
-SpellComposer.get_summon_data(element) -> Dictionary
-SpellCaster.refresh_spell(elemental, empowerment, enchantment, delivery, target) -> void
-PlayerInventory.add_element(element) -> void
-PlayerInventory.get_scaling_multiplier(element) -> float  # 1.0 + count * 0.02
 ```
 
-**Holy/Dark special:** These elements do NOT auto-cast. They fire the moment the player stops moving, gated by cooldown.
+Holy/Dark = stop-cast elements (fire on movement stop, not auto-cast).
 
-**Weakness wheel:**
-```
-Fire → Ice → Earth → Thunder → Water → Fire
-Holy ↔ Dark
-Weakness = ×1.2, Resist = ×0.8, Neutral = ×1.0
-```
+### Mana and School System (Session 2.41 — complete)
 
-### Summon System (Session 2.3 — complete)
+All enemy drops are generic mana orbs (light blue ColorRect). No element-coloured drops.
 
-One summon active at a time, independent of spell slots. All players have a summon. Summons trail the player via path-history, attack nearby enemies mimicking slot 1 spell, have HP and auto-recharge on death.
-
+**PlayerInventory mana API:**
 ```gdscript
-SummonManager.initialize(player: Node2D) -> void
-SummonManager.spawn_summon(element: String) -> void
-SummonManager.despawn_summon() -> void
-SummonManager.set_attack_spell(spell: SpellData) -> void
-SummonManager.get_summon_stat(key: String) -> Variant
-SummonManager.is_recharged() -> bool
-SummonManager.get_recharge_remaining() -> float
+PlayerInventory.add_mana(amount: int) -> void           # delegates to SpecManager.allocate_mana_for_pickup
+PlayerInventory.allocate_to_school(school, amount) -> void
+PlayerInventory.deallocate_from_school(school, amount) -> void
+PlayerInventory.get_school_tier(school: String) -> int
+PlayerInventory.get_school_multiplier(school: String) -> float
+# Fields: mana_pool: int, school_allocation: Dictionary, unallocated_mana: int
 ```
 
-**Trail follow:** Summon records player's path via position history (every 8px). Follows a point 60px behind along that path. Creates genuine tail-like lag during movement.
+**School gating:** SpellCaster checks `get_school_tier(elemental_element) == 0` at the top of `_on_cooldown_timer_timeout()`. If zero, spell is silently skipped (timer keeps running).
 
-**Attack:** Fires at nearest enemy within 350px. Uses slot 1 spell dmgmult_chain × 10 base damage. SpellCaster calls `set_attack_spell()` after every `refresh_spell()`.
-
-**HP/recharge:** Summon has HP from CSV. Takes 5 contact damage per enemy touch. On death: recharge timer starts (60s most elements, Thunder 20s). Auto-respawns same element when timer expires.
-
-**Spawn:** Called from `player.gd _ready()`. Reads active page summon_element from TomeManager, defaults to "fire".
-
-Summon recharge times: most = 60s, Stormspirit (Thunder) = 20s.
-
-### Enemy System (Session 2.3 — complete)
-
-Three enemy types, all with full status effect suite:
-
-**Chaser** (`res://scenes/enemy.tscn`) — chases player, contact damage via ProgressionManager.
-**Shooter** (`res://scenes/enemies/shooter.tscn`) — drifts to patrol Y (200-900px), patrols left/right, fires projectiles at player every 3s within 400px range. Projectiles clamped to never travel below y=1536 (control strip).
-**Tank** (`res://scenes/enemies/tank.gd`) — 100 HP, 60 speed, 600px chase distance, 25 contact damage.
-
-**Weighted spawner** — EnemySpawner has `chaser_weight`, `shooter_weight`, `tank_weight` exports. Null scenes are skipped.
-
-**Status effects (all three types):**
+**SpecManager API:**
 ```gdscript
-apply_burn(dmg_per_tick, interval, duration)
-apply_slow(amount, duration)
-apply_stagger(chance, duration)
-apply_brittle(freeze_duration, dmg_mult)  # requires _is_chilled
-apply_chain(bounce_count)                 # bounces to nearest enemies within 200px
-apply_pushback(distance)
-apply_blind(duration)                     # random wander every 0.5s
-execute(chance)                           # instant kill, blocked on is_boss=true
-apply_wet(duration)
-apply_corruption(dmg_per_tick, interval, duration)
-apply_chill(duration)
-get_element() -> String
-get_incoming_multiplier(attacker_element) -> float  # wet+thunder = 1.5x
+SpecManager.apply_spec(spec_name: String) -> void
+SpecManager.clear_spec() -> void                        # Archmage mode
+SpecManager.get_active_spec() -> SpecData
+SpecManager.get_active_spec_name() -> String
+SpecManager.is_archmage() -> bool
+SpecManager.allocate_mana_for_pickup(amount: int) -> void
 ```
 
-All status methods guarded by `has_method()` in spell_projectile.gd — silently skip, no crash.
+**Auto-allocation:** On mana pickup, SpecManager distributes per `allocation_ratios` in the active spec. Remainder (from floor rounding) goes to `unallocated_mana`. Archmage mode sends all to `unallocated_mana`.
 
-**Known deferred fix:** `take_damage()` death path should use `call_deferred("queue_free")` instead of `queue_free()` to avoid physics callback warnings. Not yet applied.
+**SpecData resource:**
+```gdscript
+class_name SpecData extends Resource
+@export var spec_name: String
+@export var description: String
+@export var allocation_ratios: Dictionary    # {"fire": 0.6, "thunder": 0.4}
+@export var preferred_slots: Array[Dictionary]  # [{elemental, empowerment, enchantment, delivery}]
+@export var preferred_ults: Array[String]
+```
+
+Spec files: `res://data/specs/pyroclast.tres`, `frostbinder.tres`, `archmage.tres`
+
+**ControlStrip mana display:** 7 school swatches showing TN tier, plus "Mana: X | Free: X" label. Updates every frame from PlayerInventory.
 
 ### Tome and Page System (Session 2.2 — complete)
 
@@ -348,21 +301,47 @@ func ensure_slots(count: int = 4) -> void
 static func make_default_slot() -> Dictionary
 ```
 
-### Control Strip (Session 2.2 + 2.3 — complete)
+### CraftingUI Redesign (Session 2.42 — PENDING)
 
-Bottom 20% of screen. Always visible. Shows HP bar, lives, active page name, spell CD, summon recharge status.
+Two-tab layout planned: **Spec** (default) / **Tome**.
+
+**Spec tab:**
+- Up to 5 spec slots + Archmage always present
+- Each row: name, Activate, Edit, Delete (Archmage not deletable)
+- Inner editor: 4 spell rows (elemental/empowerment/enchantment/delivery), summon picker, 2 ult pickers, school swatches (+/-), mana summary
+- JSON persistence for specs
+
+**Tome tab:**
+- Page list with override flag indicator (spec-driven vs manually edited)
+- Setting a page active resets override flag
+- School swatches visible for Archmage mode manual allocation
+
+### Summon System (Session 2.3 — complete)
+
+```gdscript
+SummonManager.spawn_summon(element: String) -> void
+SummonManager.despawn_summon() -> void
+SummonManager.set_attack_spell(spell: SpellData) -> void
+SummonManager.get_summon_stat(key: String) -> Variant
+SummonManager.is_recharged() -> bool
+SummonManager.get_recharge_remaining() -> float
+```
+
+### Enemy System (Session 2.3 — complete)
+
+Three enemy types, all with full status effect suite. All spawn_drop() calls use `call_deferred("add_child", drop)` — required for physics callback safety.
+
+**Status effects:** apply_burn, apply_slow, apply_stagger, apply_brittle, apply_chain, apply_pushback, apply_blind, execute, apply_wet, apply_corruption, apply_chill, get_element, get_incoming_multiplier
+
+### Control Strip (Sessions 2.2–2.41 — complete)
 
 ```gdscript
 ControlStrip.update_hp(current: float, maximum: float) -> void
 ControlStrip.update_lives(count: int) -> void
+ControlStrip.update_mana_display() -> void   # called every frame from _process
 ```
 
-HP/lives auto-update via ProgressionManager signals (`hp_changed`, `lives_changed`).
-4 action button placeholders at y=1400, above the strip. BossBarContainer at y=0, hidden.
-
 ### Life System (Session 1.4 — complete)
-
-ProgressionManager (autoload) owns lives, current_hp, max_hp. 3 lives total.
 
 ```gdscript
 get_node_or_null("/root/ProgressionManager").take_damage(amount)
@@ -380,9 +359,6 @@ get_node_or_null("/root/ProgressionManager").reset_run()
 2. **Shooter** — fires projectiles at player, forces dodging ✅
 3. **Tank** — slow, high HP, blocks progression ✅
 
-**Enemy status methods (all implemented Session 2.3):**
-apply_burn ✅ | apply_slow ✅ | apply_stagger ✅ | apply_brittle ✅ | apply_chain ✅ | apply_pushback ✅ | apply_blind ✅ | execute ✅ | get_element ✅ | apply_wet ✅ | apply_corruption ✅ | apply_chill ✅
-
 ---
 
 ## Sprite Approach
@@ -390,6 +366,7 @@ apply_burn ✅ | apply_slow ✅ | apply_stagger ✅ | apply_brittle ✅ | apply_
 - Player: orange triangle
 - Enemies: red (Chaser), dark red (Tank), purple (Shooter)
 - Summon: yellow rectangle
+- Mana orb: light blue ColorRect 16×16, Color(0.6, 0.8, 1.0)
 - Final sprites: Phase 4 art pass
 
 ---
@@ -399,7 +376,11 @@ apply_burn ✅ | apply_slow ✅ | apply_stagger ✅ | apply_brittle ✅ | apply_
 ```
 res://
 ├── data/
-│   └── spell_elements.csv
+│   ├── spell_elements.csv
+│   └── specs/
+│       ├── pyroclast.tres
+│       ├── frostbinder.tres
+│       └── archmage.tres
 ├── scenes/
 │   ├── game.tscn
 │   ├── player.tscn
@@ -408,14 +389,16 @@ res://
 │   ├── enemies/
 │   │   ├── shooter.tscn
 │   │   └── tank.tscn
-│   ├── element_drop.tscn      ← NEW
+│   ├── element_drop.tscn      ← now mana_drop (scene reused, script replaced)
 │   ├── ui/
 │   │   ├── crafting_ui.tscn
 │   │   ├── PageFlipWidget.tscn
 │   │   └── control_strip.tscn
 │   └── boss/
 ├── scripts/
-│   ├── element_drop.gd        ← NEW
+│   ├── element_drop.gd        ← now generic mana orb
+│   ├── spec_data.gd           ← NEW Session 2.41
+│   ├── spec_manager.gd        ← NEW Session 2.41
 │   ├── managers/
 │   │   ├── spell_composer.gd
 │   │   ├── player_inventory.gd
@@ -449,6 +432,7 @@ res://
 7. Never rewrite .tscn files — UID references break. Edit scripts only, make scene changes in Godot editor.
 8. Use `mini()` not `min()` when comparing two ints — avoids Variant inference errors
 9. Use `call_deferred("queue_free")` not `queue_free()` inside physics callbacks
+10. Use `call_deferred("add_child", node)` not `add_child(node)` inside physics callbacks
 
 ---
 
@@ -458,24 +442,3 @@ res://
 - `systems.md` — technical decisions log
 - `session_plan.md` — all session prompts and status tracker
 - `feedback.md` — partner playtesting notes
-
-**Session 2.4 complete:** Element drop system (20% drop rate, coloured orbs, player collection, floating label), summon HP bar + recharge display in ControlStrip, element counter HUD (7 school swatches with live counts).
-
-**Next:** Session 2.5 — Mana/School system architecture. All drops become generic mana orbs allocated into elemental schools. Schools gate spell casting. Specs system for new player onboarding.
-
-### Element Drop System (Session 2.4 — complete)
-- Enemies drop element orbs at 20% chance on death
-- res://scenes/element_drop.tscn — Area2D, Layer 6, Mask 3
-- res://scripts/element_drop.gd — @export element: String, 8s lifetime
-- spawn_drop() on all three enemy types
-- On collect: PlayerInventory.add_element(element), floating "+element" label
-- game.gd handles signal connection via child_entered_tree
-
-### Summon HP Bar (Session 2.4 — complete)
-SummonManager signals:
-- summon_hp_changed(current: float, maximum: float)
-- summon_recharge_tick(seconds_remaining: float)
-ControlStrip connects both, toggles HP bar / recharge label at y=212 in StripPanel.
-
-### Element Counter HUD (Session 2.4 — complete)
-7 coloured swatches in ControlStrip at y=256, live counts from PlayerInventory.element_counts.

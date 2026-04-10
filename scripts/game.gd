@@ -94,7 +94,7 @@ func _on_game_child_entered_tree(node: Node) -> void:
 		node.connect("died", died_callable)
 
 	if node is Area2D and node.has_signal("collected") and node.scene_file_path == "res://scenes/element_drop.tscn":
-		var collected_callable := Callable(self, "_on_element_collected").bind(node.global_position)
+		var collected_callable := Callable(self, "_on_element_collected")
 		if not node.is_connected("collected", collected_callable):
 			node.connect("collected", collected_callable)
 
@@ -113,8 +113,8 @@ func _on_enemy_died() -> void:
 	_play_sfx(enemy_death_sfx)
 
 
-func _on_element_collected(element_name: String, drop_position: Vector2) -> void:
-	_spawn_element_label("+" + element_name, drop_position)
+func _on_element_collected(drop_position: Vector2) -> void:
+	_spawn_element_label("+mana", drop_position)
 
 
 func _spawn_element_label(text: String, world_pos: Vector2) -> void:

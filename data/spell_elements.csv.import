@@ -3,13 +3,11 @@
 importer="csv_translation"
 type="Translation"
 uid="uid://cuddikiio4s3l"
+valid=false
 
 [deps]
 
-files=["res://data/spell_elements.element.translation", "res://data/spell_elements.position.translation", "res://data/spell_elements.target.translation", "res://data/spell_elements.effect.translation", "res://data/spell_elements.value1.translation", "res://data/spell_elements.value2.translation", "res://data/spell_elements.value3.translation", "res://data/spell_elements.value4.translation", "res://data/spell_elements.value5.translation", "res://data/spell_elements.cd.translation", "res://data/spell_elements.cd.translation", "res://data/spell_elements.dmgmult.translation", "res://data/spell_elements.budget.translation", "res://data/spell_elements.Description.translation"]
-
 source_file="res://data/spell_elements.csv"
-dest_files=["res://data/spell_elements.element.translation", "res://data/spell_elements.position.translation", "res://data/spell_elements.target.translation", "res://data/spell_elements.effect.translation", "res://data/spell_elements.value1.translation", "res://data/spell_elements.value2.translation", "res://data/spell_elements.value3.translation", "res://data/spell_elements.value4.translation", "res://data/spell_elements.value5.translation", "res://data/spell_elements.cd.translation", "res://data/spell_elements.cd.translation", "res://data/spell_elements.dmgmult.translation", "res://data/spell_elements.budget.translation", "res://data/spell_elements.Description.translation"]
 
 [params]
 

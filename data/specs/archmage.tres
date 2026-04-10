@@ -1,0 +1,8 @@
+[gd_resource type="Resource" script_class="SpecData" format=3 uid="uid://c3c4qpw0ydl6h"]
+
+[ext_resource type="Script" uid="uid://blvjrft22w07k" path="res://scripts/spec_data.gd" id="1_rld5l"]
+
+[resource]
+script = ExtResource("1_rld5l")
+spec_name = "archmage"
+description = "free spells"

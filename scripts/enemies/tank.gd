@@ -153,9 +153,8 @@ func spawn_drop() -> void:
 	if drop_scene == null:
 		return
 	var drop = drop_scene.instantiate()
-	drop.element = element
 	drop.position = global_position
-	get_tree().current_scene.add_child(drop)
+	get_tree().current_scene.call_deferred("add_child", drop)
 
 
 func _spawn_damage_number(amount: float, is_crit: bool) -> void:

@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SpecData" format=3 uid="uid://l81qhfnbh817"]
+
+[ext_resource type="Script" uid="uid://blvjrft22w07k" path="res://scripts/spec_data.gd" id="1_nrsfg"]
+
+[resource]
+script = ExtResource("1_nrsfg")
+spec_name = "frostbinder"
+description = "slows and roots enemies"
+allocation_ratios = {
+"ice": 0.6,
+"water": 0.4
+}
+preferred_slots = Array[Dictionary]([{
+"delivery": "Bolt",
+"elemental": "B0001",
+"empowerment": "B0002",
+"enchantment": "B0003"
+}, {
+"delivery": "bolt",
+"elemental": "B0001",
+"empowerment": "B0002",
+"enchantment": "E0003"
+}, {
+"delivery": "Bolt",
+"elemental": "B0001",
+"empowerment": "E0002",
+"enchantment": "B0003"
+}, {
+"delivery": "Bolt",
+"elemental": "B0001",
+"empowerment": "E0002",
+"enchantment": "E0003"
+}])
+preferred_ults = Array[String](["placeholder", "placeholder"])

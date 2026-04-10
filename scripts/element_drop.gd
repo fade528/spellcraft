@@ -1,19 +1,6 @@
 extends Area2D
 
-signal collected(element_name: String)
-
-@export var element: String = "fire"
-@export var drop_chance: float = 0.20
-
-const ELEMENT_COLORS := {
-	"fire": Color(1.0, 0.5, 0.0, 1.0),
-	"ice": Color(0.0, 1.0, 1.0, 1.0),
-	"earth": Color(0.55, 0.27, 0.07, 1.0),
-	"thunder": Color(1.0, 1.0, 0.0, 1.0),
-	"water": Color(0.0, 0.4, 1.0, 1.0),
-	"holy": Color(1.0, 1.0, 1.0, 1.0),
-	"dark": Color(0.5, 0.0, 0.5, 1.0),
-}
+signal collected(drop_position: Vector2)
 
 
 func _ready() -> void:
@@ -25,8 +12,6 @@ func _ready() -> void:
 
 
 func _on_area_entered(area: Area2D) -> void:
-	print("DROP HIT: layer=", area.collision_layer, " lv3=", area.get_collision_layer_value(3))
-
 	if area == null:
 		return
 
@@ -36,9 +21,9 @@ func _on_area_entered(area: Area2D) -> void:
 
 	var inventory := get_node_or_null("/root/PlayerInventory")
 	if inventory != null:
-		inventory.add_element(element)
+		inventory.add_mana(1)
 
-	collected.emit(element)
+	collected.emit(global_position)
 	call_deferred("queue_free")
 
 
@@ -46,7 +31,7 @@ func _create_visual() -> void:
 	var color_rect := ColorRect.new()
 	color_rect.size = Vector2(16, 16)
 	color_rect.position = Vector2(-8, -8)
-	color_rect.color = ELEMENT_COLORS.get(element.to_lower(), ELEMENT_COLORS["fire"])
+	color_rect.color = Color(0.6, 0.8, 1.0)
 	add_child(color_rect)
 
 

@@ -13,7 +13,7 @@ var _hp_bar: ProgressBar
 var _hp_label: Label
 var _summon_hp_bar: ProgressBar
 var _summon_recharge_label: Label
-var _element_count_labels: Dictionary = {}
+var _school_tier_labels: Dictionary = {}
 var _life_rects: Array[ColorRect] = []
 var _action_buttons: Array[ColorRect] = []
 var _boss_bar_container: Control
@@ -27,7 +27,7 @@ func _ready() -> void:
 
 	_build_hp_row()
 	_build_summon_status()
-	_build_element_counters()
+	_build_mana_display()
 	_build_action_buttons()
 	_build_boss_bar()
 
@@ -130,8 +130,8 @@ func _build_summon_status() -> void:
 	strip_panel.add_child(_summon_recharge_label)
 
 
-func _build_element_counters() -> void:
-	var elements := [
+func _build_mana_display() -> void:
+	var schools := [
 		{"name": "fire", "color": Color(1.0, 0.2, 0.2)},
 		{"name": "ice", "color": Color(0.4, 0.8, 1.0)},
 		{"name": "earth", "color": Color(0.6, 0.3, 0.1)},
@@ -140,27 +140,36 @@ func _build_element_counters() -> void:
 		{"name": "holy", "color": Color(1.0, 1.0, 1.0)},
 		{"name": "dark", "color": Color(0.5, 0.0, 0.8)},
 	]
-	var column_width := SCREEN_WIDTH / float(elements.size())
+	var column_width := SCREEN_WIDTH / float(schools.size())
 
-	for i in range(elements.size()):
-		var element_data: Dictionary = elements[i]
+	for i in range(schools.size()):
+		var school_data: Dictionary = schools[i]
 		var center_x := column_width * (i + 0.5)
 
 		var swatch := ColorRect.new()
 		swatch.size = Vector2(28.0, 28.0)
 		swatch.position = Vector2(center_x - 14.0, 256.0)
-		swatch.color = element_data["color"]
+		swatch.color = school_data["color"]
 		strip_panel.add_child(swatch)
 
-		var count_label := Label.new()
-		count_label.position = Vector2(center_x - 14.0, 288.0)
-		count_label.size = Vector2(28.0, 24.0)
-		count_label.text = "0"
-		count_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		count_label.add_theme_font_size_override("font_size", 20)
-		strip_panel.add_child(count_label)
+		var tier_label := Label.new()
+		tier_label.position = Vector2(center_x - 20.0, 288.0)
+		tier_label.size = Vector2(40.0, 24.0)
+		tier_label.text = "T0"
+		tier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		tier_label.add_theme_font_size_override("font_size", 20)
+		strip_panel.add_child(tier_label)
 
-		_element_count_labels[element_data["name"]] = count_label
+		_school_tier_labels[school_data["name"]] = tier_label
+
+	var mana_label := Label.new()
+	mana_label.name = "ManaPoolLabel"
+	mana_label.position = Vector2(0.0, 320.0)
+	mana_label.size = Vector2(SCREEN_WIDTH, 28.0)
+	mana_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	mana_label.add_theme_font_size_override("font_size", 22)
+	mana_label.text = "Mana: 0  |  Free: 0"
+	strip_panel.add_child(mana_label)
 
 
 func _build_action_buttons() -> void:
@@ -224,7 +233,7 @@ func _build_boss_bar() -> void:
 func _process(_delta: float) -> void:
 	_refresh_spell_cd()
 	_refresh_summon()
-	update_element_counts()
+	update_mana_display()
 
 
 func _refresh_all() -> void:
@@ -290,15 +299,16 @@ func update_lives(count: int) -> void:
 		_life_rects[i].visible = i < count
 
 
-func update_element_counts() -> void:
+func update_mana_display() -> void:
 	var inv = get_node_or_null("/root/PlayerInventory")
 	if inv == null:
 		return
-	for element in _element_count_labels:
-		var count = 0
-		if "element_counts" in inv:
-			count = inv.element_counts.get(element, 0)
-		_element_count_labels[element].text = str(count)
+	for school in _school_tier_labels:
+		var tier: int = int(inv.get_school_tier(school))
+		_school_tier_labels[school].text = "T%d" % tier
+	var mana_label := strip_panel.get_node_or_null("ManaPoolLabel")
+	if mana_label != null:
+		mana_label.text = "Mana: %d  |  Free: %d" % [inv.mana_pool, inv.unallocated_mana]
 
 
 func _show_summon_active(current: float, maximum: float) -> void:

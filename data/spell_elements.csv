@@ -7,8 +7,8 @@ A0005,Fire,Enchantment,self,killfuel,0.05,,,,,0,passive,0,3,each enemy killed re
 A0006,Fire,Empowerment,self,overheat,3,,,,,0,passive,1.5,4,"every [value1] number of spells have been cast, the next spell will be amped by [dmgmult]"
 A0007,Fire,Summon,Summon,forgespirits,0.2,0.2,,,,20,recharge,0,5,"summon 2 spirits with [value1] hp and [value2] attack that follows the player, summon attacks always mimic player 1st slot spell effects"
 B0001,Ice,Elemental,enemy,weakness_bonus,earth,1.2,,,,1,cast,0.9,2.5,"spell dmg against [value1] enemy take additional [value2] dmg, otherwise do [dmgult] dmg"
-B0003,Ice,Empowerment,enemy,brittle,2,1.5,,,,1,cast,0,5,"can only apply to targets with a chilled debuff, will freeze target for [value1] and any dmg is increased by [value2]"
-B0002,Ice,Enchantment,enemy,chilled,0.4,4,,,,1,cast,0,4,"apply a movement slow debuff [value1] for [value2] seconds, chilled opponents are considered ice units"
+B0002,Ice,Empowerment,enemy,brittle,2,1.5,,,,1,cast,0,5,"can only apply to targets with a chilled debuff, will freeze target for [value1] and any dmg is increased by [value2]"
+B0003,Ice,Enchantment,enemy,chilled,0.4,4,,,,1,cast,0,4,"apply a movement slow debuff [value1] for [value2] seconds, chilled opponents are considered ice units"
 B0004,Ice,Elemental,self,resist_bonus,earth,0.8,,,,0,passive,1,1,"[value1] attacks deal [value2] to player, otherwise deal [dmgmult] to player"
 B0005,Ice,Empowerment,self,iceshield,3,0.3,10,,,0,passive,0,3,"after standing still for [value1] seconds, gain a ice barrier to block [value2] of total hp for [value3] seconds"
 B0006,Ice,Enchantment,self,chillaura,0.2,500,,,,0,passive,0,4,apply a [value1] slow to enemies around the player with radius of [value2]

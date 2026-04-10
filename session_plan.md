@@ -21,12 +21,6 @@ Relevant existing code: [paste if applicable]"
 ## Phase 0 — Setup
 **Status: ✅ Complete**
 
-Environment configured:
-- Godot 4.6.2, Mobile renderer, 1080x1920 portrait
-- VS Code + godot-tools + Codex
-- Git + GitHub at github.com/fade528/spellcraft
-- All MD files in project root
-
 ---
 
 ## Phase 1 — Alpha Build
@@ -42,104 +36,75 @@ Environment configured:
 
 ## Phase 2 — Core Systems
 
-### Session 2.1 — Spell Combo Architecture
-**Status: ✅ Complete**
-
-Key decisions:
-- Slot names: Elemental / Empowerment / Enchantment / Summon
-- All spell data in res://data/spell_elements.csv — Google Sheets only
-- Autoloads: PlayerInventory, SpellComposer, SummonManager
-- Damage formula: item_base_dmg x elemental_mult x weakness_mult x emp_mult x enc_mult
-- Holy/Dark fire on stop, not auto-cast
-- Summon slot independent, one active at a time
-- AoE excludes primary hit target
-- apply_burn on enemy with repeating Timer
-- Equipment slots stubbed in PlayerInventory
-
-Verified: Fire+Fire+Fire total_cd=3.0, dmgmult_chain=1.2, burn ticks and AoE working.
+### Session 2.1 — Spell Combo Architecture ✅
+### Session 2.2 — Tome, Pages + Crafting UI ✅
+### Session 2.3 — Enemy Variants + Status Effects + Summon AI ✅
+### Session 2.4 — Element Drop System ✅
 
 ---
 
-### Session 2.2 — Tome, Pages + Crafting UI
-**Status: ✅ Complete**
+### Session 2.41 — Mana & School System ✅ COMPLETE
+**Date:** 2026-04-10
 
-Key decisions:
-- TomeManager autoload, max 8 pages, JSON persistence
-- PageData resource: slots, summon_element, ult1, ult2
-- CraftingUI: pauses game, Escape to open
-- Set Active bypasses flip cooldown gate directly
-- child.free() not queue_free() to prevent duplicate buttons
-- PageFlipWidget: edge swipe gesture (0-10%, 90-100% of strip)
-- Grid always centre screen, drag direction decoupled from press point
-- _select_start resets when finger enters mid zone (10-90%)
-- ControlStrip: bottom 20%, shows page/CD/summon, touchpad lives here
-- Input zones: 0-10% flip, 10-90% touchpad, 90-100% flip
-- player.gd uses _input(), page_flip_widget.gd uses _input() with zone guards
-- Player clamps to top 80% viewport, RESPAWN_POSITION = (540, 1400)
-- .tscn files must never be rewritten by Codex — UID breaks scene
+Delivered:
+- element_drop.gd → generic mana orb (light blue, no element property)
+- PlayerInventory: mana_pool, school_allocation, unallocated_mana, full allocation API
+- SpellCaster: school gate at top of _on_cooldown_timer_timeout()
+- SpecData resource class (spec_data.gd)
+- SpecManager autoload (spec_manager.gd) — auto-allocation per spec ratios
+- ControlStrip: school tier display (T0–Tn) + mana summary label
+- Spec .tres files: pyroclast.tres, frostbinder.tres, archmage.tres
+- enemy.gd / shooter.gd / tank.gd: call_deferred("add_child") fix for physics callback
 
----
+Deferred to 2.42:
+- CraftingUI redesign (Spec tab + Tome tab)
+- Full spec editor (spell slots, school swatches, ult pickers)
+- JSON persistence for specs
+- Tome page override flag
 
-### Session 2.3 — Enemy Variants + Status Effects + Summon AI
-**Status: ✅ Complete**
-
-Key decisions:
-- Shooter: patrols Y 200-900px, fires every 3s within 400px, projectile clamped (dir.y <= 0)
-- Tank: 100 HP, speed 60, chase 600px, contact 25 damage
-- Weighted spawner: chaser/shooter/tank weights, null scenes skipped
-- All status effects on all three enemy types (slow, stagger, brittle, chain, pushback, blind, execute, wet, corruption, chill)
-- `mini()` not `min()` for int comparisons — avoids Variant inference errors
-- `call_deferred("queue_free")` needed in physics callbacks (not yet applied — known deferred fix)
-- Summon trail: path-history follow (TRAIL_RECORD_DIST=8px, TRAIL_FOLLOW_DIST=60px, move_toward 200px/s)
-- Summon attack: nearest enemy 350px, dmgmult_chain*10 damage, synced to slot 1 via set_attack_spell()
-- Summon HP from CSV, 5 damage per enemy contact, auto-respawn on recharge timeout
-- spawn_summon uses call_deferred(add_child) — called during _ready() tree setup
-- Crit numbers: gold pop effect (52→68→56px, hold, fade) vs normal upward drift
-- UI: HP/lives in ControlStrip, 4 action buttons at y=1400 (above strip), boss bar hidden
-- Old HUD MarginContainer visible=false
+Known bugs logged (deferred to 2.42):
+- Spell casting stops when summon dies
+- Page flip respawns summon when recharging
 
 ---
 
-## Session 2.4 — Element Drop System + Summon HUD ✅ COMPLETE
-Date: 2026-04-10
-All goals delivered:
-- Element drop system working (20% drop, collect, floating label)
-- Summon HP bar + recharge display in ControlStrip
-- Element counter HUD (7 swatches, live counts)
-- Mana/School system designed, deferred to 2.5
+### Session 2.42 — CraftingUI Redesign (NEXT)
 
----
+```
+Read context.md and systems.md first.
+Godot 4 GDScript.
+Session 2.42 — CraftingUI Redesign
 
-## Session 2.5 — Mana & School System (NEXT)
+Two known bugs to fix first (warm-up):
+1. Spells stop casting when summon dies — investigate summon_manager.gd and spell_caster.gd
+2. Page flip respawns summon during recharge — investigate page_flip_widget.gd and crafting_ui.gd _on_set_active_pressed()
 
-Context: Design pivot from element drops to universal mana drops allocated into elemental schools.
+Then redesign CraftingUI as a two-tab layout: Spec (default) / Tome.
 
-Goals:
-1. MANA DROP SYSTEM
-   - Replace element_drop with mana_drop (single neutral orb, white/blue colour)
-   - PlayerInventory: add mana_pool (total), school_allocation Dict, unallocated_mana
-   - add_mana() replaces add_element()
-   - get_school_tier(school) -> int returns allocation count
-   - get_school_multiplier(school) -> float returns 1.0 + tier * 0.05
+SPEC TAB:
+- List of up to 5 named spec slots + Archmage (always present, not deletable)
+- Each row: spec name, Activate button (dimmed if active), Edit button, Delete button
+- Empty slots are dimmed
+- Inner spec editor:
+  - 4 spell rows: elemental / empowerment / enchantment / delivery dropdowns
+  - Summon picker (element dropdown)
+  - 2 ult pickers (placeholder dropdown for now)
+  - 7 school swatches with +/- buttons and tier labels
+  - Mana: X | Free: X summary label
+  - Save / Cancel buttons
+- JSON persistence: specs saved to user://specs.json, loaded on startup
 
-2. SCHOOL GATING
-   - SpellCaster checks get_school_tier(element) > 0 before casting
-   - Greyed out indicator in ControlStrip if school locked
+TOME TAB:
+- Existing page list (preserve all current functionality)
+- Each page row shows "★ Spec" or "✎ Override" indicator
+- Setting a page active resets override flag
+- Activating a spec repopulates non-overridden pages with preferred_slots
 
-3. SPEC SYSTEM
-   - SpecData resource: spec_name, allocation_ratios Dict, preferred_slots Array, preferred_ults Array
-   - SpecManager autoload: apply_spec(spec), get_active_spec(), clear_spec() (Archmage mode)
-   - Auto-allocation: on mana pickup, distribute per spec ratios
-   - Spec selection screen or CraftingUI tab
+Archmage note: no preferred slots, school swatches visible directly in spec view for manual allocation.
 
-4. REALLOCATION UI
-   - CraftingUI tab for manual school allocation
-   - Show current tier per school, unallocated mana pool
-   - +/- buttons per school
-
-Pre-session requirements:
-- Partner defines 3-4 Specs with allocation ratios and preferred spell IDs
-- Agree tier scaling formula (currently proposed: 1.0 + tier * 0.05)
+Relevant files to paste:
+crafting_ui.gd, spec_manager.gd, spec_data.gd, player_inventory.gd, tome_manager.gd
+```
 
 ---
 
@@ -165,8 +130,6 @@ Current scene tree: [paste]
 Relevant code: [paste progression_manager.gd, spell_caster.gd]
 ```
 
-**Delivers:** Beating bosses unlocks spell slots 1 through 4
-
 ---
 
 ## Phase 3 — Boss System
@@ -184,32 +147,7 @@ Relevant code: [paste progression_manager.gd, spell_caster.gd]
 ### Session 4.2 — Ultimate Ability ⬜
 ### Session 4.3 — Paragon Generator ⬜
 
-### Session 4.4 — Item System
-**Status: ⬜ Pending**
-
-```
-Read context.md and systems.md first. Build the item
-system — 5 equipment slots (hat, robe, gloves, boots,
-weapon), items drop from bosses only.
-
-Equipment slots already stubbed in PlayerInventory.
-Need: EquipmentData resource, item drop scene,
-pickup logic, equip logic, stat application.
-
-Slot primary stats:
-Hat = +Max HP
-Robe = +Damage %
-Gloves = +Cast speed
-Boots = +Move speed
-Weapon = +Base damage (feeds item_base_dmg in SpellCaster)
-
-Godot 4 GDScript.
-Current scene tree: [paste]
-Relevant code: [paste player_inventory.gd, spell_caster.gd,
-progression_manager.gd]
-```
-
-**Delivers:** Boss drops items, player equips them, stats apply
+### Session 4.4 — Item System ⬜
 
 ### Session 4.5 — Full Art Pass ⬜
 ### Session 4.6 — Audio Pass ⬜
@@ -277,8 +215,10 @@ with our architecture decisions:
 | 1.5 — Alpha Polish | ✅ Complete | Juice pass, audio, APK tested on device |
 | 2.1 — Spell Combos | ✅ Complete | CSV system, 3 autoloads, Fire+Fire+Fire verified, DoT and AoE working |
 | 2.2 — Tome + Crafting UI | ✅ Complete | TomeManager, PageData, CraftingUI, PageFlipWidget, ControlStrip, JSON save, input zones |
-| 2.3 — Enemy Variants | ✅ Complete | Shooter + Tank, all status effects, weighted spawner, summon trail/HP/attack/recharge, crit pop, UI layout, bugfix for Summon hit radius, projectile invun, contact logic | 
-| 2.4 — Element Drops | ⬜ Pending | | also reminder to add a summon hp bar
+| 2.3 — Enemy Variants | ✅ Complete | Shooter + Tank, all status effects, weighted spawner, summon trail/HP/attack/recharge, crit pop, UI layout |
+| 2.4 — Element Drops | ✅ Complete | Element drop system, summon HP bar, element counter HUD |
+| 2.41 — Mana & School System | ✅ Complete | Generic mana orbs, mana pool, school gating, SpecData, SpecManager, mana HUD. CraftingUI redesign deferred to 2.42 |
+| 2.42 — CraftingUI Redesign | ⬜ Pending | Spec tab + Tome tab, spec editor, JSON persistence, 2 bug fixes |
 | 2.5 — Spell Slots | ⬜ Pending | |
 | 3.1 — Boss State Machine | ⬜ Pending | |
 | 3.2 — First Boss | ⬜ Pending | |
@@ -294,9 +234,3 @@ with our architecture decisions:
 | 5.1 — Google Play | ⬜ Pending | |
 | 5.2 — iOS App Store | ⬜ Pending | |
 | 5.3 — Post Launch | ⬜ Pending | |
-
----
-
-> Update status column as sessions complete.
-> Add notes on key decisions made in each session.
-> These notes feed into systems.md.

@@ -72,6 +72,10 @@ func refresh_spell(
 
 
 func _on_cooldown_timer_timeout() -> void:
+	var _inventory := get_node_or_null("/root/PlayerInventory")
+	if _inventory != null and _inventory.get_school_tier(elemental_element) == 0:
+		return
+
 	if spell_data == null or projectile_scene == null:
 		return
 

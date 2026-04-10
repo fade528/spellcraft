@@ -1,0 +1,34 @@
+[gd_resource type="Resource" script_class="SpecData" format=3 uid="uid://blclov8cgscvk"]
+
+[ext_resource type="Script" uid="uid://blvjrft22w07k" path="res://scripts/spec_data.gd" id="1_c2o3a"]
+
+[resource]
+script = ExtResource("1_c2o3a")
+spec_name = "Pyroclast"
+description = "strong fire aoe"
+allocation_ratios = {
+"fire": 0.8,
+"thunder": 0.2
+}
+preferred_slots = Array[Dictionary]([{
+"delivery": "Bolt",
+"elemental": "A0001",
+"empowerment": "A0002",
+"enchantment": "D0003"
+}, {
+"delivery": "Bolt",
+"elemental": "A0001",
+"empowerment": "D0002",
+"enchantment": "A0003"
+}, {
+"delivery": "bolt",
+"elemental": "A0001",
+"empowerment": "D0002",
+"enchantment": "D0003"
+}, {
+"delivery": "Bolt",
+"elemental": "D0001",
+"empowerment": "A0002",
+"enchantment": "A0003"
+}])
+preferred_ults = Array[String](["placeholder", "placeholder"])
