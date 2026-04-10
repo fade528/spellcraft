@@ -31,7 +31,8 @@ func _ready() -> void:
 		last_known_hp = progression_manager.current_hp
 
 	if crafting_ui != null:
-		crafting_ui.ui_closed.connect(_on_crafting_ui_closed)
+		if crafting_ui.has_signal("ui_closed"):
+			crafting_ui.connect("ui_closed", _on_crafting_ui_closed)
 
 
 func _input(event: InputEvent) -> void:

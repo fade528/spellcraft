@@ -56,54 +56,84 @@ Delivered:
 - Spec .tres files: pyroclast.tres, frostbinder.tres, archmage.tres
 - enemy.gd / shooter.gd / tank.gd: call_deferred("add_child") fix for physics callback
 
-Deferred to 2.42:
-- CraftingUI redesign (Spec tab + Tome tab)
-- Full spec editor (spell slots, school swatches, ult pickers)
-- JSON persistence for specs
-- Tome page override flag
+---
 
-Known bugs logged (deferred to 2.42):
-- Spell casting stops when summon dies
-- Page flip respawns summon when recharging
+### Session 2.42 — CraftingUI Redesign ✅ COMPLETE
+**Date:** 2026-04-10
+
+Delivered:
+- Bug fix: Spells stop after summon death — school gate now checks school_allocation.is_empty()
+- Bug fix: Page flip respawns summon during recharge — is_recharged() guard in crafting_ui and flip_to_page
+- Bug fix: Rapid-fire spells on page flip — _configure_cooldown_timer only starts if timer is stopped
+- Bug fix: Page flip blocked during summon recharge — summon recharge removed from can_flip_page()
+- Bug fix: Shooter projectiles not hitting player — collision mask fix (set_collision_mask_value)
+- Bug fix: Shooter projectiles not hitting summon — mask 6 added, spell_projectile routes layer 6 to SummonManager
+- CraftingUI: Single Spec tab, all UI built in code, no .tscn changes
+- Spec list: Archmage (top) + 5 built-in slots + 5 custom slots (My Specs)
+- Spec editor: slot pickers, summon/ult pickers, ratio % inputs, live mana allocation controls
+- Per-spec tome: each spec owns pages_specname.json, switching specs saves/loads automatically
+- Mana system: all pickups bank to unallocated_mana, player allocates via Reset/Alloc Remaining %/Alloc All %
+- PageData.is_overridden: ~ prefix = spec-driven, * prefix = manually edited
+- Save as Spec from Archmage: copies pages + allocation to new custom spec slot
+- TomeManager: load_for_spec(), reset_to_default(), _generate_default_pages(), per-spec save paths
+- SpecManager: allocate_remaining_by_spec(), allocate_all_by_spec(), save_archmage_as_spec()
+
+Deferred to 2.43:
+- Tome inline in spec editor (prev/next page navigation)
+- Remove separate Tome view entirely
+
+Known remaining issues:
+- Frostbinder preferred_slots empty in .tres — needs data entry in Godot inspector
+- Shooter projectile despawn: enemy projectiles travel downward, never hit DESPAWN_Y (-50) — they linger forever off-screen bottom
 
 ---
 
-### Session 2.42 — CraftingUI Redesign (NEXT)
+### Session 2.43 — Spec Editor Tome Integration (NEXT)
 
 ```
 Read context.md and systems.md first.
 Godot 4 GDScript.
-Session 2.42 — CraftingUI Redesign
+Session 2.43 — Embed tome page navigator inside spec editor.
 
-Two known bugs to fix first (warm-up):
-1. Spells stop casting when summon dies — investigate summon_manager.gd and spell_caster.gd
-2. Page flip respawns summon during recharge — investigate page_flip_widget.gd and crafting_ui.gd _on_set_active_pressed()
+Goal: Remove the separate Tome view. The spec editor becomes a single unified screen
+containing both spec configuration AND page management.
 
-Then redesign CraftingUI as a two-tab layout: Spec (default) / Tome.
+Current flow: Spec editor → "Go to Tome" button → Tome view (separate)
+Target flow: Spec editor has inline page section with prev/next navigation
 
-SPEC TAB:
-- List of up to 5 named spec slots + Archmage (always present, not deletable)
-- Each row: spec name, Activate button (dimmed if active), Edit button, Delete button
-- Empty slots are dimmed
-- Inner spec editor:
-  - 4 spell rows: elemental / empowerment / enchantment / delivery dropdowns
-  - Summon picker (element dropdown)
-  - 2 ult pickers (placeholder dropdown for now)
-  - 7 school swatches with +/- buttons and tier labels
-  - Mana: X | Free: X summary label
-  - Save / Cancel buttons
-- JSON persistence: specs saved to user://specs.json, loaded on startup
+LAYOUT (top to bottom in spec editor):
+1. Header row: [< Back] [Reset Spec*] [Save as Spec**]
+   * only for built-in specs
+   ** only on Archmage row
+2. Name field (read-only for built-ins)
+3. Separator
+4. SPEC TEMPLATE section:
+   - 4 slot rows (elemental/empowerment/enchantment/delivery)
+   - Summon picker + Ult 1 + Ult 2
+   - Ratio % inputs (7 schools, integer inputs, normalise on save)
+5. Separator
+6. PAGES section:
+   - Header: "Pages" label + [< Prev] [Page X of Y] [Next >] + [+ Add] [- Remove]
+   - Current page name (editable inline via LineEdit)
+   - Current page spell rows (same 4-slot picker layout as spec template above)
+   - Current page summon + ult pickers
+   - [Craft] button → opens page_editor_view (existing) for full edit
+   - [Activate] button → sets this page active in-game
+7. Separator
+8. MANA ALLOCATION section (existing controls — keep as-is)
+9. [Save Spec] [Cancel] buttons
 
-TOME TAB:
-- Existing page list (preserve all current functionality)
-- Each page row shows "★ Spec" or "✎ Override" indicator
-- Setting a page active resets override flag
-- Activating a spec repopulates non-overridden pages with preferred_slots
+ARCHITECTURE NOTES:
+- Remove _switch_to_tome_list() and all tome_view show/hide logic
+- _spec_editor_container handles everything
+- Add _spec_editor_page_index: int = 0 to track which page is shown in editor
+- Prev/Next buttons update _spec_editor_page_index and repopulate the page section only
+- "Go to Tome" button on spec editor can be removed (tome is now inline)
+- tome_view from .tscn can remain hidden permanently
+- page_editor_view still used for deep craft editing — Back from page editor returns to spec editor
 
-Archmage note: no preferred slots, school swatches visible directly in spec view for manual allocation.
-
-Relevant files to paste:
-crafting_ui.gd, spec_manager.gd, spec_data.gd, player_inventory.gd, tome_manager.gd
+Paste these files to begin:
+crafting_ui.gd, tome_manager.gd
 ```
 
 ---
@@ -146,9 +176,7 @@ Relevant code: [paste progression_manager.gd, spell_caster.gd]
 ### Session 4.1 — Full Level Progression ⬜
 ### Session 4.2 — Ultimate Ability ⬜
 ### Session 4.3 — Paragon Generator ⬜
-
 ### Session 4.4 — Item System ⬜
-
 ### Session 4.5 — Full Art Pass ⬜
 ### Session 4.6 — Audio Pass ⬜
 ### Session 4.7 — Performance + Mobile Polish ⬜
@@ -217,8 +245,9 @@ with our architecture decisions:
 | 2.2 — Tome + Crafting UI | ✅ Complete | TomeManager, PageData, CraftingUI, PageFlipWidget, ControlStrip, JSON save, input zones |
 | 2.3 — Enemy Variants | ✅ Complete | Shooter + Tank, all status effects, weighted spawner, summon trail/HP/attack/recharge, crit pop, UI layout |
 | 2.4 — Element Drops | ✅ Complete | Element drop system, summon HP bar, element counter HUD |
-| 2.41 — Mana & School System | ✅ Complete | Generic mana orbs, mana pool, school gating, SpecData, SpecManager, mana HUD. CraftingUI redesign deferred to 2.42 |
-| 2.42 — CraftingUI Redesign | ⬜ Pending | Spec tab + Tome tab, spec editor, JSON persistence, 2 bug fixes |
+| 2.41 — Mana & School System | ✅ Complete | Generic mana orbs, mana pool, school gating, SpecData, SpecManager, mana HUD |
+| 2.42 — CraftingUI Redesign | ✅ Complete | 6 bug fixes, spec list 10 slots, spec editor, per-spec tome, mana allocation UI, Save as Spec |
+| 2.43 — Spec Editor Tome Integration | ⬜ Pending | Inline page navigator in spec editor, remove separate Tome view |
 | 2.5 — Spell Slots | ⬜ Pending | |
 | 3.1 — Boss State Machine | ⬜ Pending | |
 | 3.2 — First Boss | ⬜ Pending | |

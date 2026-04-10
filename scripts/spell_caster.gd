@@ -28,7 +28,8 @@ func _configure_cooldown_timer() -> void:
 	cooldown_timer.wait_time = max(spell_data.cooldown, 0.05)
 	if not cooldown_timer.timeout.is_connected(_on_cooldown_timer_timeout):
 		cooldown_timer.timeout.connect(_on_cooldown_timer_timeout)
-	cooldown_timer.start()
+	if cooldown_timer.is_stopped():
+		cooldown_timer.start()
 
 
 func set_moving(moving: bool) -> void:
@@ -73,7 +74,7 @@ func refresh_spell(
 
 func _on_cooldown_timer_timeout() -> void:
 	var _inventory := get_node_or_null("/root/PlayerInventory")
-	if _inventory != null and _inventory.get_school_tier(elemental_element) == 0:
+	if _inventory != null and not _inventory.school_allocation.is_empty() and _inventory.get_school_tier(elemental_element) == 0:
 		return
 
 	if spell_data == null or projectile_scene == null:

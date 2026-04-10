@@ -146,9 +146,11 @@ func _try_fire() -> void:
 	vis.position = Vector2(-6, -6)
 	vis.color = Color(1.0, 0.3, 1.0)
 	proj.add_child(vis)
+	proj.collision_layer = 0
+	proj.collision_mask = 0
 	proj.set_collision_layer_value(5, true)
-	proj.collision_mask = 3 | (1 << 5)
-	proj.set_collision_mask_value(4, false)
+	proj.set_collision_mask_value(3, true)
+	proj.set_collision_mask_value(6, true)
 	proj.setup(global_position, dir, contact_damage, projectile_speed)
 	var container = get_tree().get_first_node_in_group("projectile_container")
 	if container == null:

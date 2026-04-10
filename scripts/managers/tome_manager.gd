@@ -1,11 +1,12 @@
 extends Node
 
 const MAX_PAGES := 8
-const SAVE_PATH := "user://tome_pages.json"
+const SAVE_DIR := "user://"
 
 var pages: Array = []
 var active_page_index: int = 0
 var _flip_cooldown: float = 0.0
+var _current_spec_name: String = "archmage"
 
 signal page_flipped(index: int)
 signal page_saved(index: int)
@@ -15,9 +16,15 @@ signal flip_blocked(reason: String)
 
 
 func _ready() -> void:
+	_current_spec_name = "archmage"
 	load_pages()
 	if pages.is_empty():
 		_add_default_page()
+
+
+func _save_path_for(spec_name: String) -> String:
+	var safe := spec_name.to_lower().replace(" ", "_")
+	return SAVE_DIR + "pages_" + safe + ".json"
 
 
 func _process(delta: float) -> void:
@@ -32,9 +39,6 @@ func can_flip_page(target_index: int = -1) -> bool:
 		return true
 	if _flip_cooldown > 0.0:
 		return false
-	var sm = get_node_or_null("/root/SummonManager")
-	if sm != null and sm.has_method("is_recharged"):
-		return sm.is_recharged()
 	return true
 
 
@@ -81,7 +85,7 @@ func flip_to_page(index: int) -> void:
 
 	# Spawn summon for new page
 	var sm = get_node_or_null("/root/SummonManager")
-	if sm != null and sm.has_method("spawn_summon"):
+	if sm != null and sm.has_method("spawn_summon") and sm.is_recharged():
 		sm.spawn_summon(page.summon_element)
 
 	# Set flip cooldown = longest total_cd across all SpellCasters
@@ -108,17 +112,19 @@ func save_pages() -> void:
 			"summon_element": page.summon_element,
 			"ult1": page.ult1,
 			"ult2": page.ult2,
+			"is_overridden": page.is_overridden,
 			"slots": slots_raw
 		})
-	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	var file := FileAccess.open(_save_path_for(_current_spec_name), FileAccess.WRITE)
 	if file != null:
 		file.store_string(JSON.stringify(data))
 
 
 func load_pages() -> void:
-	if not FileAccess.file_exists(SAVE_PATH):
+	var path := _save_path_for(_current_spec_name)
+	if not FileAccess.file_exists(path):
 		return
-	var file := FileAccess.open(SAVE_PATH, FileAccess.READ)
+	var file := FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		return
 	var text := file.get_as_text()
@@ -132,6 +138,7 @@ func load_pages() -> void:
 		p.summon_element = str(entry.get("summon_element", "fire"))
 		p.ult1 = str(entry.get("ult1", ""))
 		p.ult2 = str(entry.get("ult2", ""))
+		p.is_overridden = bool(entry.get("is_overridden", false))
 		var slots_raw = entry.get("slots", [])
 		p.slots = []
 		for slot in slots_raw:
@@ -144,6 +151,50 @@ func load_pages() -> void:
 			})
 		p.ensure_slots(4)
 		pages.append(p)
+	if pages.is_empty():
+		_add_default_page()
+
+
+func load_for_spec(spec_name: String, preferred_slots: Array = []) -> void:
+	# Save current spec pages before switching
+	if not pages.is_empty():
+		save_pages()
+	_current_spec_name = spec_name
+	active_page_index = 0
+	pages.clear()
+	load_pages()
+	if pages.is_empty():
+		_generate_default_pages(preferred_slots)
+	if pages.is_empty():
+		_add_default_page()
+
+
+func _generate_default_pages(preferred_slots: Array) -> void:
+	if preferred_slots.is_empty():
+		return
+	var p := PageData.new()
+	p.page_name = "Page 1"
+	p.ensure_slots(4)
+	for j in range(mini(preferred_slots.size(), p.slots.size())):
+		var src: Dictionary = preferred_slots[j]
+		p.slots[j] = {
+			"elemental": str(src.get("elemental", "fire")),
+			"empowerment": str(src.get("empowerment", "fire")),
+			"enchantment": str(src.get("enchantment", "fire")),
+			"delivery": str(src.get("delivery", "bolt")),
+			"target": str(src.get("target", "enemy"))
+		}
+	pages.append(p)
+	save_pages()
+
+
+func reset_to_default(preferred_slots: Array = []) -> void:
+	var path := _save_path_for(_current_spec_name)
+	if FileAccess.file_exists(path):
+		DirAccess.remove_absolute(path)
+	pages.clear()
+	active_page_index = 0
+	_generate_default_pages(preferred_slots)
 	if pages.is_empty():
 		_add_default_page()
 
@@ -201,3 +252,9 @@ func rename_page(index: int, new_name: String) -> void:
 	pages[index].page_name = new_name.strip_edges()
 	save_pages()
 	emit_signal("page_renamed", index, new_name)
+
+
+func reset_override_flags() -> void:
+	for page in pages:
+		page.is_overridden = false
+	save_pages()

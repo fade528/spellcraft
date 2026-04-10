@@ -46,13 +46,24 @@ Renderer:      Mobile
 
 Phase 2 in progress. Phase 1 (Alpha) is complete — game is playable, APK tested on device.
 
-**Session 2.41 complete:** Mana economy replacing element drops. All drops are now generic mana orbs. Mana pools in PlayerInventory, school gating in SpellCaster, SpecData resources, SpecManager autoload with auto-allocation. CraftingUI Schools tab + full Spec UI deferred to Session 2.42.
+**Session 2.42 complete:** CraftingUI full redesign. Spec-first single-tab layout. Per-spec tome architecture. Mana banking system. Multiple bug fixes.
 
-**Next:** Session 2.42 — CraftingUI redesign. Spec-first two-tab layout (Spec / Tome). Full spec editor with spell slots, school swatches, ult pickers. JSON persistence for specs. Tome page override flag.
+**What was delivered in 2.42:**
+- Bug fix: Spells stop after summon death (school gate condition corrected)
+- Bug fix: Page flip respawns summon during recharge (is_recharged() guard added)
+- Bug fix: Shooter projectiles not hitting player or summon (collision mask fix)
+- Bug fix: Rapid-fire spells on page flip (timer only starts if stopped)
+- Bug fix: Page flip blocked during summon recharge (removed from can_flip_page)
+- CraftingUI: Single Spec tab with spec list, spec editor, tome view — all built in code
+- Spec list: Archmage + 5 built-in slots + 5 custom slots (My Specs)
+- Spec editor: slot pickers, summon/ult pickers, ratio inputs, mana allocation controls
+- Per-spec tome: each spec owns its own pages (user://pages_{spec}.json)
+- Mana system: all pickups bank to unallocated, player allocates manually via UI
+- PageData.is_overridden flag: ~ = spec-driven, * = manually edited
+- Save as Spec from Archmage: copies pages + allocation ratios to new custom spec
+- Activate/Edit/Reset Spec/Delete per spec type
 
-**Known bugs to fix in Session 2.42:**
-1. Spell casting stops when summon dies — likely SummonManager signal or set_attack_spell(null) propagating incorrectly
-2. Page flip respawns summon when it shouldn't — PageFlipWidget or TomeManager not checking summon recharge state
+**Next:** Session 2.43 — Embed tome page navigator inside spec editor. Remove separate Tome view. Single unified spec+tome screen with prev/next page navigation inline.
 
 ---
 
@@ -123,6 +134,13 @@ res://data/spell_elements.csv
 res://data/specs/pyroclast.tres
 res://data/specs/frostbinder.tres
 res://data/specs/archmage.tres
+
+Save files (user data — generated at runtime):
+user://specs.json              — custom spec definitions
+user://pages_archmage.json     — Archmage tome pages
+user://pages_pyroclast.json    — Pyroclast tome pages
+user://pages_frostbinder.json  — Frostbinder tome pages
+user://pages_{custom}.json     — one file per custom spec
 ```
 
 ### Input Zone Map (bottom 20% control strip)
@@ -178,14 +196,17 @@ Layer 2 — Enemy physical body
 Layer 3 — Player hurtbox (Area2D)
 Layer 4 — Enemy hurtbox (Area2D)
 Layer 5 — Spell projectiles (Area2D)
-Layer 6 — Mana drops (Area2D)
+Layer 6 — Mana drops (Area2D) / Summon hurtbox (Area2D)
 Layer 7 — Screen boundaries
 ```
+
+**Note:** Layer 6 is shared between mana drops and summon hurtbox. Shooter projectiles use mask 3 (player) + mask 6 (summon). Player spells use mask 4 (enemy). Summon hurtbox hit routes to SummonManager.take_summon_damage().
 
 ### Data Pattern
 - **CSV files** = master spell data. `res://data/spell_elements.csv` — edited in Google Sheets only, never by Codex.
 - **Resources (.tres)** = other master data (spec definitions, enemy stats, level configs). Stored in `res://data/specs/`.
 - **Node variables** = runtime state (current HP, cooldown timers).
+- **JSON files** = player save data. user://specs.json (custom specs), user://pages_{spec}.json (per-spec tome pages).
 - Always `duplicate()` resources before modifying per-instance values.
 
 ### Game States
@@ -216,8 +237,6 @@ Each spell is composed from 3 element slots + delivery:
 
 Delivery types: Bolt, Burst, Beam, Blast, Cleave, Missile, Wall, Utility
 
-SpellData resource fields: `damage, cooldown, total_cd, dmgmult_chain, total_budget, projectile_speed, effects[]`
-
 ```gdscript
 SpellComposer.compose_spell(elemental, empowerment, enchantment, delivery, target) -> SpellData
 SpellComposer.is_stop_cast(element) -> bool
@@ -226,13 +245,13 @@ SpellComposer.get_weakness_multiplier(attacker, defender) -> float
 
 Holy/Dark = stop-cast elements (fire on movement stop, not auto-cast).
 
-### Mana and School System (Session 2.41 — complete)
+### Mana and School System (Sessions 2.41 / 2.42 — complete)
 
 All enemy drops are generic mana orbs (light blue ColorRect). No element-coloured drops.
 
 **PlayerInventory mana API:**
 ```gdscript
-PlayerInventory.add_mana(amount: int) -> void           # delegates to SpecManager.allocate_mana_for_pickup
+PlayerInventory.add_mana(amount: int) -> void           # banks to unallocated_mana via SpecManager
 PlayerInventory.allocate_to_school(school, amount) -> void
 PlayerInventory.deallocate_from_school(school, amount) -> void
 PlayerInventory.get_school_tier(school: String) -> int
@@ -240,19 +259,25 @@ PlayerInventory.get_school_multiplier(school: String) -> float
 # Fields: mana_pool: int, school_allocation: Dictionary, unallocated_mana: int
 ```
 
-**School gating:** SpellCaster checks `get_school_tier(elemental_element) == 0` at the top of `_on_cooldown_timer_timeout()`. If zero, spell is silently skipped (timer keeps running).
+**School gating:** SpellCaster checks `not school_allocation.is_empty() and get_school_tier(elemental_element) == 0`. Gate only activates once player has made at least one allocation. Timer only restarts if stopped (prevents rapid-fire on page flip).
 
 **SpecManager API:**
 ```gdscript
-SpecManager.apply_spec(spec_name: String) -> void
-SpecManager.clear_spec() -> void                        # Archmage mode
+SpecManager.apply_spec(spec_name: String) -> void        # activates spec + loads its tome
+SpecManager.clear_spec() -> void                          # Archmage mode
 SpecManager.get_active_spec() -> SpecData
 SpecManager.get_active_spec_name() -> String
 SpecManager.is_archmage() -> bool
-SpecManager.allocate_mana_for_pickup(amount: int) -> void
+SpecManager.allocate_mana_for_pickup(amount: int) -> void # banks all to unallocated_mana
+SpecManager.allocate_remaining_by_spec() -> void
+SpecManager.allocate_all_by_spec() -> void
+SpecManager.get_all_spec_names() -> Array[String]
+SpecManager.save_spec_from_dict(name, data) -> void
+SpecManager.delete_custom_spec(name) -> void
+SpecManager.save_archmage_as_spec(new_name) -> void
 ```
 
-**Auto-allocation:** On mana pickup, SpecManager distributes per `allocation_ratios` in the active spec. Remainder (from floor rounding) goes to `unallocated_mana`. Archmage mode sends all to `unallocated_mana`.
+**Mana allocation:** All pickups bank to unallocated_mana. Player allocates manually via UI. Three actions: Reset Allocation, Alloc Remaining %, Alloc All %.
 
 **SpecData resource:**
 ```gdscript
@@ -266,55 +291,57 @@ class_name SpecData extends Resource
 
 Spec files: `res://data/specs/pyroclast.tres`, `frostbinder.tres`, `archmage.tres`
 
-**ControlStrip mana display:** 7 school swatches showing TN tier, plus "Mana: X | Free: X" label. Updates every frame from PlayerInventory.
+### Tome and Page System (Sessions 2.2 / 2.42 — complete)
 
-### Tome and Page System (Session 2.2 — complete)
+Each spec owns its own Tome (up to 8 pages). Switching specs saves current pages and loads the new spec's pages. Save files: `user://pages_{spec_name}.json`.
 
-Players hold a Tome with up to 8 Pages. Each Page = 4 spell slots + 1 summon + 2 ultimates. Pages saved to disk, persist across runs and restarts.
-
-**Page flip gesture:** press left 0-10% or right 90-100% of control strip → 3x3 grid appears → drag direction selects page → release confirms.
-
-**Escape menu (CraftingUI):** full crafting workshop. Pauses game. Edit slot 0 elements.
-
+**PageData:**
 ```gdscript
+class_name PageData extends Resource
+@export var page_name: String
+@export var slots: Array[Dictionary]   # {elemental, empowerment, enchantment, delivery, target}
+@export var summon_element: String
+@export var ult1: String
+@export var ult2: String
+@export var is_overridden: bool = false  # true = manually edited, false = spec-driven
+func ensure_slots(count: int = 4) -> void
+static func make_default_slot() -> Dictionary
+```
+
+**TomeManager API:**
+```gdscript
+TomeManager.load_for_spec(spec_name: String, preferred_slots: Array = []) -> void
+TomeManager.reset_to_default(preferred_slots: Array = []) -> void
 TomeManager.flip_to_page(index: int) -> void
-TomeManager.can_flip_page(target_index: int = -1) -> bool
+TomeManager.can_flip_page(target_index: int = -1) -> bool  # only checks spell cooldown now
 TomeManager.save_page(index: int, page: PageData) -> void
 TomeManager.get_page(index: int) -> PageData
 TomeManager.get_active_page() -> PageData
 TomeManager.add_page() -> void
 TomeManager.delete_page(index: int) -> void
 TomeManager.rename_page(index: int, new_name: String) -> void
+TomeManager.reset_override_flags() -> void
+```
+
+**Page flip gate:** Only spell cooldown (_flip_cooldown). Summon recharge no longer blocks flips — summon respawn is skipped during recharge but flip is allowed.
+
+**Page override indicator:** `~ ` prefix = spec-driven (is_overridden=false), `* ` prefix = manually edited (is_overridden=true).
+
+**CraftingUI:**
+```gdscript
 CraftingUI.open_ui() -> void
 CraftingUI.close_ui() -> void
 ```
 
-**PageData resource:**
-```gdscript
-class_name PageData extends Resource
-@export var page_name: String
-@export var slots: Array[Dictionary]  # {elemental, empowerment, enchantment, delivery, target}
-@export var summon_element: String
-@export var ult1: String
-@export var ult2: String
-func ensure_slots(count: int = 4) -> void
-static func make_default_slot() -> Dictionary
-```
+### CraftingUI (Session 2.42 — complete)
 
-### CraftingUI Redesign (Session 2.42 — PENDING)
+Single Spec tab. All UI built in code, no .tscn changes. Spec list → Spec editor → Tome view → Page editor flow.
 
-Two-tab layout planned: **Spec** (default) / **Tome**.
+**Spec slots:** Archmage (always top) | Built-in 1-5 (Activate/Edit/Reset Spec) | Custom 6-10 (Activate/Edit/Delete) | Resume
+**Spec editor:** Back | Go to Tome | Reset Spec (built-ins only) | Name (read-only for built-ins) | Slot pickers | Summon/Ult pickers | Ratio % inputs | Mana Allocation (+/- per school, Reset Allocation, Alloc Remaining %, Alloc All %)
+**Tome view:** Per-spec page list with override indicators, summary row, Craft/Activate/Rename/Delete, mana chart with +/- at bottom.
 
-**Spec tab:**
-- Up to 5 spec slots + Archmage always present
-- Each row: name, Activate, Edit, Delete (Archmage not deletable)
-- Inner editor: 4 spell rows (elemental/empowerment/enchantment/delivery), summon picker, 2 ult pickers, school swatches (+/-), mana summary
-- JSON persistence for specs
-
-**Tome tab:**
-- Page list with override flag indicator (spec-driven vs manually edited)
-- Setting a page active resets override flag
-- School swatches visible for Archmage mode manual allocation
+**Next session (2.43):** Embed tome inline in spec editor. Remove separate Tome view. Prev/next page navigator inside spec editor.
 
 ### Summon System (Session 2.3 — complete)
 
@@ -327,11 +354,15 @@ SummonManager.is_recharged() -> bool
 SummonManager.get_recharge_remaining() -> float
 ```
 
+Summon hurtbox on Layer 6. Shooter projectiles now correctly hit summon (mask 6). Damage routed to SummonManager.take_summon_damage().
+
 ### Enemy System (Session 2.3 — complete)
 
-Three enemy types, all with full status effect suite. All spawn_drop() calls use `call_deferred("add_child", drop)` — required for physics callback safety.
+Three enemy types, all with full status effect suite. All spawn_drop() calls use `call_deferred("add_child", drop)`.
 
 **Status effects:** apply_burn, apply_slow, apply_stagger, apply_brittle, apply_chain, apply_pushback, apply_blind, execute, apply_wet, apply_corruption, apply_chill, get_element, get_incoming_multiplier
+
+**Shooter projectile fix (Session 2.42):** Shooter enemy projectiles use `set_collision_mask_value(3, true)` and `set_collision_mask_value(6, true)` — never raw integer mask assignment.
 
 ### Control Strip (Sessions 2.2–2.41 — complete)
 
@@ -389,16 +420,16 @@ res://
 │   ├── enemies/
 │   │   ├── shooter.tscn
 │   │   └── tank.tscn
-│   ├── element_drop.tscn      ← now mana_drop (scene reused, script replaced)
+│   ├── element_drop.tscn
 │   ├── ui/
 │   │   ├── crafting_ui.tscn
 │   │   ├── PageFlipWidget.tscn
 │   │   └── control_strip.tscn
 │   └── boss/
 ├── scripts/
-│   ├── element_drop.gd        ← now generic mana orb
-│   ├── spec_data.gd           ← NEW Session 2.41
-│   ├── spec_manager.gd        ← NEW Session 2.41
+│   ├── element_drop.gd
+│   ├── spec_data.gd
+│   ├── spec_manager.gd
 │   ├── managers/
 │   │   ├── spell_composer.gd
 │   │   ├── player_inventory.gd
@@ -433,6 +464,8 @@ res://
 8. Use `mini()` not `min()` when comparing two ints — avoids Variant inference errors
 9. Use `call_deferred("queue_free")` not `queue_free()` inside physics callbacks
 10. Use `call_deferred("add_child", node)` not `add_child(node)` inside physics callbacks
+11. Never use raw integer collision_mask assignment — always use set_collision_mask_value() for clarity
+12. GDScript lambda closures in for loops capture loop variables by reference — use .bind(value) instead
 
 ---
 

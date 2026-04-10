@@ -16,6 +16,7 @@ extends Resource
 @export var summon_element: String = "fire"
 @export var ult1: String = ""
 @export var ult2: String = ""
+@export var is_overridden: bool = false
 
 
 static func make_default_slot() -> Dictionary:

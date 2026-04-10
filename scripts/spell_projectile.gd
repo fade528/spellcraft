@@ -53,6 +53,14 @@ func _on_area_entered(area: Area2D) -> void:
 		queue_free()
 		return
 
+	# Summon hurtbox — layer 6
+	if area.get_collision_layer_value(6):
+		var sum = get_node_or_null("/root/SummonManager")
+		if sum != null and sum.has_method("take_summon_damage"):
+			sum.take_summon_damage(damage)
+		queue_free()
+		return
+
 	if not area.get_collision_layer_value(4):
 		return
 
