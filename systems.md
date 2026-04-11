@@ -310,3 +310,26 @@ This covers all files in res://data/ including all current and future CSVs.
 **Notes:** FileAccess.open("res://...") works on Android only if the file is 
 packed into the PCK. The UI "Filters to export non-resource files" field does 
 not reliably pack files. Edit the .cfg export preset directly if needed.
+
+### Spell Scaling Foundation (Session 2.44)
+**Date:** 2026-04-11
+**Decision:** Full scaling pipeline wired across SpellComposer, SpellCaster,
+and SpellProjectile.
+**Implementation:**
+- spell_elements.csv (replaces .txt): added ScaleValue1-5, ScaleDmgmult,
+  Status columns (indices 15-22). Only rows with Status="active" are loaded.
+- SpellComposer: reads scale columns into every row and effect dict. Fetches
+  get_school_tier(elemental) at compose time, embeds tier into each
+  on_hit_effect dict. effective_dmgmult = base_dmgmult + scale_dmgmult * tier.
+- SpellCaster: reads get_school_multiplier(elemental) at fire time, passes
+  item_base_dmg * school_mult into setup_from_spell().
+- SpellProjectile: _scaled(effect, base_key, scale_key) helper reads tier from
+  effect dict, returns base + scale * tier with full Variant safety.
+  All on-hit dispatcher cases use _scaled(). Fixed chilled (value3=slow,
+  value2=duration). Corruption tries apply_corruption() first, falls back to
+  apply_burn(). chain 2 renamed to purge (apply_purge + roundi). chain 1 uses
+  roundi. splash and tidal add apply_wet(). voidpull = negative pushback.
+  Removed lifeleech and judgement cases.
+**Notes:** _to_float() returns "" for blank cells (intentional for value1-5
+which can hold strings like "ice"). Scale fields arriving as "" are safely
+handled by _scaled() Variant coercion — no cast errors.

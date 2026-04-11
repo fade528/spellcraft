@@ -3,13 +3,11 @@
 importer="csv_translation"
 type="Translation"
 uid="uid://chom0ftxfiw2b"
+valid=false
 
 [deps]
 
-files=["res://data/deliveries.behavior.translation", "res://data/deliveries.projectile.translation", "res://data/deliveries.pattern.translation"]
-
 source_file="res://data/deliveries.csv"
-dest_files=["res://data/deliveries.behavior.translation", "res://data/deliveries.projectile.translation", "res://data/deliveries.pattern.translation"]
 
 [params]
 

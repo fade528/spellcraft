@@ -109,11 +109,15 @@ func _on_cooldown_timer_timeout() -> void:
 			weakness = spell_composer.get_weakness_multiplier(
 				elemental_element, target_el
 			)
+		var school_mult := 1.0
+		var _inv2 := get_node_or_null("/root/PlayerInventory")
+		if _inv2 != null and _inv2.has_method("get_school_multiplier"):
+			school_mult = _inv2.get_school_multiplier(elemental_element)
 		projectile_instance.setup_from_spell(
 			spell_data,
 			spawn_position,
 			shot_direction,
-			item_base_dmg,
+			item_base_dmg * school_mult,
 			weakness
 		)
 	elif projectile_instance.has_method("setup"):

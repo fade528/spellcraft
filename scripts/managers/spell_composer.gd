@@ -3,7 +3,7 @@ extends Node
 var _rows: Dictionary = {}
 var _index: Dictionary = {}
 
-const SPELL_ELEMENTS_CSV_PATH := "res://data/spell_elements.txt"
+const SPELL_ELEMENTS_CSV_PATH := "res://data/spell_elements.csv"
 
 const COL_SPELL_ID := 0
 const COL_ELEMENT := 1
@@ -19,6 +19,15 @@ const COL_CD := 10
 const COL_CD_TYPE := 11
 const COL_DMGMULT := 12
 const COL_BUDGET := 13
+const COL_DESCRIPTION := 14
+const COL_SCALE_VALUE1 := 15
+const COL_SCALE_VALUE2 := 16
+const COL_SCALE_VALUE3 := 17
+const COL_SCALE_VALUE4 := 18
+const COL_SCALE_VALUE5 := 19
+const COL_SCALE_DMGMULT := 20
+# col 21 = Scale Description (ignored)
+const COL_STATUS := 22
 
 
 func _ready() -> void:
@@ -41,7 +50,7 @@ func _parse_spell_elements_csv() -> void:
 		var columns := file.get_csv_line(",")
 		if columns.is_empty():
 			continue
-		while columns.size() < 15:
+		while columns.size() < 23:
 			columns.append("")
 
 		var row := {
@@ -58,8 +67,18 @@ func _parse_spell_elements_csv() -> void:
 			"cd": _to_float(columns[COL_CD]),
 			"cd_type": columns[COL_CD_TYPE].strip_edges(),
 			"dmgmult": _to_float(columns[COL_DMGMULT]),
-			"budget": _to_float(columns[COL_BUDGET])
+			"budget": _to_float(columns[COL_BUDGET]),
+			"scale_value1": _to_float(columns[COL_SCALE_VALUE1]),
+			"scale_value2": _to_float(columns[COL_SCALE_VALUE2]),
+			"scale_value3": _to_float(columns[COL_SCALE_VALUE3]),
+			"scale_value4": _to_float(columns[COL_SCALE_VALUE4]),
+			"scale_value5": _to_float(columns[COL_SCALE_VALUE5]),
+			"scale_dmgmult": _to_float(columns[COL_SCALE_DMGMULT])
 		}
+
+		var status := columns[COL_STATUS].strip_edges().to_lower()
+		if status != "active":
+			continue
 
 		var spell_id := str(row["spell_id"])
 		if spell_id.is_empty():
@@ -108,7 +127,12 @@ func compose_spell(
 	base_dmgmult *= _positive_or_neutral(empowerment_row.get("dmgmult", 0.0))
 	base_dmgmult *= _positive_or_neutral(enchantment_row.get("dmgmult", 0.0))
 
-	var scaled_dmgmult := base_dmgmult * _get_inventory_scaling(elemental)
+	var inv := get_node_or_null("/root/PlayerInventory")
+	var tier: int = 0
+	if inv != null and inv.has_method("get_school_tier"):
+		tier = inv.get_school_tier(elemental)
+	var scale_dmgmult_val := _variant_to_float(elemental_row.get("scale_dmgmult", 0.0))
+	var effective_dmgmult := base_dmgmult + scale_dmgmult_val * tier
 	var spell_data := SpellData.new()
 	spell_data.spell_name = "%s %s %s" % [elemental, empowerment, enchantment]
 	spell_data.combo_name = spell_data.spell_name
@@ -119,7 +143,7 @@ func compose_spell(
 	spell_data.total_cd = total_cd
 	spell_data.total_budget = total_budget
 	spell_data.cooldown = total_cd
-	spell_data.dmgmult_chain = scaled_dmgmult
+	spell_data.dmgmult_chain = effective_dmgmult
 	spell_data.damage = 1.0
 	spell_data.on_hit_effects = []
 	spell_data.self_effects = []
@@ -131,6 +155,7 @@ func compose_spell(
 		var target := str(row.get("target", "")).to_lower()
 		var effect := _build_effect_entry(row)
 		if target == "enemy":
+			effect["tier"] = tier
 			spell_data.on_hit_effects.append(effect)
 		elif target == "self":
 			if str(row.get("cd_type", "")).to_lower() == "passive":
@@ -192,6 +217,12 @@ func _build_effect_entry(row: Dictionary) -> Dictionary:
 		"value4": row.get("value4", ""),
 		"value5": row.get("value5", ""),
 		"dmgmult": _variant_to_float(row.get("dmgmult", 0.0)),
+		"scale_value1": row.get("scale_value1", 0.0),
+		"scale_value2": row.get("scale_value2", 0.0),
+		"scale_value3": row.get("scale_value3", 0.0),
+		"scale_value4": row.get("scale_value4", 0.0),
+		"scale_value5": row.get("scale_value5", 0.0),
+		"scale_dmgmult": row.get("scale_dmgmult", 0.0),
 		"cd_type": str(row.get("cd_type", ""))
 	}
 
@@ -211,13 +242,6 @@ func _variant_to_float(value: Variant) -> float:
 	if value is String and value.is_valid_float():
 		return value.to_float()
 	return 0.0
-
-
-func _get_inventory_scaling(element: String) -> float:
-	var inventory = _get_player_inventory()
-	if inventory != null and inventory.has_method("get_scaling_multiplier"):
-		return inventory.get_scaling_multiplier(element)
-	return 1.0
 
 
 func _get_player_inventory() -> Node:

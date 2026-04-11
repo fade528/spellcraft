@@ -76,66 +76,103 @@ func _on_area_entered(area: Area2D) -> void:
 		queue_free()
 
 
+func _scaled(effect: Dictionary, base_key: String, scale_key: String) -> float:
+	var tier: int = effect.get("tier", 0)
+	var base: Variant = effect.get(base_key, 0.0)
+	var scale: Variant = effect.get(scale_key, 0.0)
+	var base_f := 0.0
+	if base is float:
+		base_f = base
+	elif base is int:
+		base_f = float(base)
+	elif base is String and (base as String).is_valid_float():
+		base_f = (base as String).to_float()
+	var scale_f := 0.0
+	if scale is float:
+		scale_f = scale
+	elif scale is int:
+		scale_f = float(scale)
+	elif scale is String and (scale as String).is_valid_float():
+		scale_f = (scale as String).to_float()
+	return base_f + scale_f * float(tier)
+
+
 func _apply_on_hit_effects(target: Node) -> void:
 	for effect in on_hit_effects:
 		var effect_name = effect.get("effect_name", "")
 		match effect_name:
-			"burndot", "corruption":
+			"burndot":
 				if target.has_method("apply_burn"):
 					target.apply_burn(
-						spell_final_dmg * float(effect.get("value1", 0)),
-						float(effect.get("value2", 1)),
-						float(effect.get("value3", 3))
+						spell_final_dmg * _scaled(effect, "value1", "scale_value1"),
+						_scaled(effect, "value2", "scale_value2"),
+						_scaled(effect, "value3", "scale_value3")
 					)
+			"corruption":
+				var dmg_per_tick := spell_final_dmg * _scaled(effect, "value1", "scale_value1")
+				var interval := _scaled(effect, "value2", "scale_value2")
+				var duration := _scaled(effect, "value3", "scale_value3")
+				if target.has_method("apply_corruption"):
+					target.apply_corruption(dmg_per_tick, interval, duration)
+				elif target.has_method("apply_burn"):
+					target.apply_burn(dmg_per_tick, interval, duration)
 			"chilled":
 				if target.has_method("apply_slow"):
 					target.apply_slow(
-						float(effect.get("value1", 0)),
-						float(effect.get("value2", 0))
+						_scaled(effect, "value3", "scale_value3"),
+						_scaled(effect, "value2", "scale_value2")
 					)
 			"brittle":
 				if target.has_method("apply_brittle"):
 					target.apply_brittle(
-						float(effect.get("value1", 0)),
-						float(effect.get("value2", 0))
+						_scaled(effect, "value1", "scale_value1"),
+						_scaled(effect, "value2", "scale_value2")
 					)
 			"explosion":
 				_apply_aoe(
-					float(effect.get("value1", 0)),
-					spell_final_dmg * float(effect.get("value2", 0)),
+					_scaled(effect, "value1", "scale_value1"),
+					spell_final_dmg * _scaled(effect, "value2", "scale_value2"),
 					target
 				)
-			"chain 1", "chain 2":
+			"chain 1":
 				if target.has_method("apply_chain"):
-					target.apply_chain(int(float(effect.get("value1", 0))))
+					target.apply_chain(roundi(_scaled(effect, "value1", "scale_value1")))
+			"purge":
+				if target.has_method("apply_purge"):
+					target.apply_purge(roundi(_scaled(effect, "value1", "scale_value1")))
 			"stagger":
 				if target.has_method("apply_stagger"):
 					target.apply_stagger(
-						float(effect.get("value1", 0)),
-						float(effect.get("value2", 0))
+						_scaled(effect, "value1", "scale_value1"),
+						_scaled(effect, "value2", "scale_value2")
 					)
 			"splash":
 				_apply_aoe(
-					float(effect.get("value1", 0)),
-					spell_final_dmg * float(effect.get("value2", 0)),
+					_scaled(effect, "value1", "scale_value1"),
+					spell_final_dmg * _scaled(effect, "value2", "scale_value2"),
 					target
 				)
+				if target.has_method("apply_wet"):
+					target.apply_wet()
 			"tidal":
 				if target.has_method("apply_pushback"):
-					target.apply_pushback(float(effect.get("value1", 0)))
+					target.apply_pushback(_scaled(effect, "value1", "scale_value1"))
+				if target.has_method("apply_wet"):
+					target.apply_wet()
+			"voidpull":
+				if target.has_method("apply_pushback"):
+					target.apply_pushback(-_scaled(effect, "value1", "scale_value1"))
 			"execute":
 				if target.has_method("execute"):
-					target.execute(float(effect.get("value1", 0)))
-			"lifeleech", "soulsiphon":
-				var heal = spell_final_dmg * float(effect.get("value1", 0))
-				var pm = get_node_or_null("/root/ProgressionManager")
+					target.execute(_scaled(effect, "value1", "scale_value1"))
+			"soulsiphon":
+				var heal := spell_final_dmg * _scaled(effect, "value1", "scale_value1")
+				var pm := get_node_or_null("/root/ProgressionManager")
 				if pm != null and pm.has_method("heal"):
 					pm.heal(heal)
 			"radiance":
 				if target.has_method("apply_blind"):
-					target.apply_blind(float(effect.get("value1", 0)))
-			"judgement":
-				pass
+					target.apply_blind(_scaled(effect, "value1", "scale_value1"))
 			_:
 				pass
 

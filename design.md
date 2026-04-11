@@ -271,17 +271,10 @@ Players can also create new pages and fill them from scratch during pause.
 ## Page Structure
 
 ```
-Page = {
-  name: String           # player-named, e.g. "Burn Stack"
-  slot1: SpellConfig     # elemental + empowerment + enchantment + delivery
-  slot2: SpellConfig     # (locked until Level 2)
-  slot3: SpellConfig     # (locked until Level 3)
-  slot4: SpellConfig     # (locked until Level 4)
-  summon: String         # element name
-  ult1: String           # (locked until Level 5)
-  ult2: String           # (locked until Level 6)
-}
-```
+Level unlocks:
+Lv1 = 1 slot (default), Lv2 = 2, Lv3 = Summon Slot, Lv4 = Potion slot
+Lv5 = 1st Ultimate slot, Lv6 = 3rd slot, Lv7 = 4th slot, Lv8 = 2nd Ultimate slot
+Lv 8 is therefore max level
 
 Locked slots are visible but greyed out — players can see what's coming and plan ahead.
 
@@ -424,7 +417,7 @@ High sustained damage, weak burst window.
 
 # 🎯 Progression System
 
-## Levels (1–6)
+## Levels (1–8)
 
 Progression is unlocked by **beating bosses**
 
@@ -432,14 +425,10 @@ Progression is unlocked by **beating bosses**
 
 ## Level Unlocks
 
-```text
-Lv1 → 1 spell slot
-Lv2 → 2 spell slots
-Lv3 → 3 spell slots
-Lv4 → 4 spell slots
-Lv5 → Ultimate unlock
-Lv6 → Ultimate upgrade
-```
+Level unlocks:
+Lv1 = 1 slot (default), Lv2 = 2, Lv3 = Summon Slot, Lv4 = Potion slot
+Lv5 = 1st Ultimate slot, Lv6 = 3rd slot, Lv7 = 4th slot, Lv8 = 2nd Ultimate slot
+Lv 8 is therefore max level
 
 Summon slot is always available from the start regardless of level.
 
@@ -533,13 +522,19 @@ All enemy drops are generic Mana Orbs. On collection, mana is allocated into ele
 
 # ⚡ Difficulty Scaling
 
-## Normal Levels 1–6
+## Normal Levels 1–8
 
 * Time-based enemy count increase
 * Speed and HP scale per level
 * Enemy mix changes per level
 
-## Paragon (Level 7+)
+## Advance Levels 9-20
+
+* Time-based enemy count increase
+* Speed and HP scale per level
+* Enemy mix changes per level
+
+## Paragon (Level 20+)
 
 * Difficulty budget system — each paragon level increases the total enemy difficulty budget per wave
 * Weighted random enemy selection from pool
