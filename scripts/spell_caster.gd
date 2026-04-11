@@ -28,8 +28,8 @@ func _configure_cooldown_timer() -> void:
 	cooldown_timer.wait_time = max(spell_data.cooldown, 0.05)
 	if not cooldown_timer.timeout.is_connected(_on_cooldown_timer_timeout):
 		cooldown_timer.timeout.connect(_on_cooldown_timer_timeout)
-	if cooldown_timer.is_stopped():
-		cooldown_timer.start()
+	cooldown_timer.stop()
+	cooldown_timer.start()
 
 
 func set_moving(moving: bool) -> void:

@@ -3,7 +3,7 @@ extends Node
 var _rows: Dictionary = {}
 var _index: Dictionary = {}
 
-const SPELL_ELEMENTS_CSV_PATH := "res://data/spell_elements.csv"
+const SPELL_ELEMENTS_CSV_PATH := "res://data/spell_elements.txt"
 
 const COL_SPELL_ID := 0
 const COL_ELEMENT := 1

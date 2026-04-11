@@ -44,26 +44,21 @@ Renderer:      Mobile
 
 ## Current Status
 
-Phase 2 in progress. Phase 1 (Alpha) is complete — game is playable, APK tested on device.
+**Session 2.43 complete:** CraftingUI unified spec editor. Menu button. 
+Android export CSV fix.
 
-**Session 2.42 complete:** CraftingUI full redesign. Spec-first single-tab layout. Per-spec tome architecture. Mana banking system. Multiple bug fixes.
+**What was delivered in 2.43:**
+- CraftingUI: Removed separate Tome view — single unified spec+page editor screen
+- Inline page navigator (prev/next, add/remove) inside spec editor
+- Slot 1 live-editable with auto-save on change, live SpellCaster refresh
+- Summon and Ult 1/2 live pickers with save on change
+- Mana & Ratios section: ratio inputs for named specs, hidden for Archmage
+- % allocation reads ratio inputs directly — works for non-active specs
+- Menu button: leftmost action button opens/closes CraftingUI on desktop + Android
+- Android: CSV files now correctly packed via include_filter="data/*" in export preset
+- Bug fix: % allocation buttons incorrectly greyed when editing non-active named spec
 
-**What was delivered in 2.42:**
-- Bug fix: Spells stop after summon death (school gate condition corrected)
-- Bug fix: Page flip respawns summon during recharge (is_recharged() guard added)
-- Bug fix: Shooter projectiles not hitting player or summon (collision mask fix)
-- Bug fix: Rapid-fire spells on page flip (timer only starts if stopped)
-- Bug fix: Page flip blocked during summon recharge (removed from can_flip_page)
-- CraftingUI: Single Spec tab with spec list, spec editor, tome view — all built in code
-- Spec list: Archmage + 5 built-in slots + 5 custom slots (My Specs)
-- Spec editor: slot pickers, summon/ult pickers, ratio inputs, mana allocation controls
-- Per-spec tome: each spec owns its own pages (user://pages_{spec}.json)
-- Mana system: all pickups bank to unallocated, player allocates manually via UI
-- PageData.is_overridden flag: ~ = spec-driven, * = manually edited
-- Save as Spec from Archmage: copies pages + allocation ratios to new custom spec
-- Activate/Edit/Reset Spec/Delete per spec type
-
-**Next:** Session 2.43 — Embed tome page navigator inside spec editor. Remove separate Tome view. Single unified spec+tome screen with prev/next page navigation inline.
+**Next:** Session 2.44 — Partner playtesting feedback integration
 
 ---
 
@@ -331,6 +326,7 @@ TomeManager.reset_override_flags() -> void
 ```gdscript
 CraftingUI.open_ui() -> void
 CraftingUI.close_ui() -> void
+
 ```
 
 ### CraftingUI (Session 2.42 — complete)
@@ -342,6 +338,21 @@ Single Spec tab. All UI built in code, no .tscn changes. Spec list → Spec edit
 **Tome view:** Per-spec page list with override indicators, summary row, Craft/Activate/Rename/Delete, mana chart with +/- at bottom.
 
 **Next session (2.43):** Embed tome inline in spec editor. Remove separate Tome view. Prev/next page navigator inside spec editor.
+
+### CraftingUI (Session 2.43 — complete)
+
+Single unified screen. No separate Tome view.
+
+**Flow:** Spec list → Spec editor (Name + PAGES inline + Mana & Ratios) 
+→ Back to spec list
+
+**Page section:** Prev/Next navigator, page name LineEdit (saves on 
+focus_exited), Slot 1 live pickers (save on change), Summon live picker, 
+Ult 1/2 live pickers, Save Page button, Activate button.
+
+**Mana & Ratios:** School name labels (always shown), ratio % inputs 
+(named specs only), T0/+/- allocation controls, Reset/Alloc Remaining 
+%/Alloc All %, Mana summary. Archmage shows hint label instead of % buttons.
 
 ### Summon System (Session 2.3 — complete)
 
@@ -475,3 +486,4 @@ res://
 - `systems.md` — technical decisions log
 - `session_plan.md` — all session prompts and status tracker
 - `feedback.md` — partner playtesting notes
+

@@ -274,3 +274,39 @@ if area.get_collision_layer_value(6):
 ### Next Session — 2.43 Spec Editor Tome Integration
 **Date:** 2026-04-10
 **Planned:** Embed tome page navigator directly inside spec editor. Remove separate Tome view. Spec editor becomes single unified screen: spec metadata + inline page navigator (prev/next) + page spell rows + mana allocation. Craft button pushes to page_editor_view, Back returns to spec editor.
+
+### CraftingUI Unified Spec Editor (Session 2.43)
+**Date:** 2026-04-11
+**Decision:** Removed separate Tome view. Embedded page navigator inline inside 
+spec editor. Single unified screen.
+**Implementation:** 
+- Layout: Name → PAGES (prev/next navigator) → Mana & Ratios → Save/Cancel
+- Slot 1 auto-saves on picker change and live-refreshes active SpellCaster
+- Summon and Ult 1/2 are live pickers, save on change
+- Ratio inputs hidden for Archmage, shown for named specs
+- % allocation buttons disabled for Archmage with explanatory label
+- % allocation reads ratio inputs directly via _ratio_input_fields dict reference
+- _spec_editor_page_index tracks current page in navigator
+- _repopulate_page_section() rebuilds only the page section on prev/next
+**Notes:** _spec_slot_pickers and _spec_summon_picker removed — spec template 
+slots removed entirely. Save spec builds preferred_slots from page 0 of TomeManager.
+
+### Menu Button (Session 2.43)
+**Date:** 2026-04-11
+**Decision:** Leftmost action button wired as Menu toggle (open/close CraftingUI).
+**Implementation:** ControlStrip emits menu_button_pressed signal. Hit detection 
+via _input() with dynamic rect scaling. Debounce 0.3s prevents double-fire.
+CraftingUI connects via get_first_node_in_group("control_strip") using 
+call_deferred. ControlStrip must be in group "control_strip" in scene tree.
+**Notes:** OS.has_feature() unreliable for mobile detection at runtime — use 
+touch/mouse both with debounce instead. ESC key also triggers menu_button_pressed.
+
+### Android Export — Non-Resource File Inclusion (Session 2.43)
+**Date:** 2026-04-11
+**Decision:** CSV files must be explicitly included in Android export via 
+include_filter in the export preset, not via the Godot UI filter field.
+**Implementation:** In export preset: include_filter="data/*"
+This covers all files in res://data/ including all current and future CSVs.
+**Notes:** FileAccess.open("res://...") works on Android only if the file is 
+packed into the PCK. The UI "Filters to export non-resource files" field does 
+not reliably pack files. Edit the .cfg export preset directly if needed.

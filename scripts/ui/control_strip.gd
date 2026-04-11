@@ -1,5 +1,7 @@
 extends CanvasLayer
 
+signal menu_button_pressed
+
 @onready var strip_panel: ColorRect = $StripPanel
 @onready var active_page_label: Label = $StripPanel/ActivePageLabel
 @onready var spell_cd_label: Label = $StripPanel/SpellCDLabel
@@ -16,6 +18,8 @@ var _summon_recharge_label: Label
 var _school_tier_labels: Dictionary = {}
 var _life_rects: Array[ColorRect] = []
 var _action_buttons: Array[ColorRect] = []
+var _menu_btn_cooldown: float = 0.0
+var _menu_button_screen_rect: Rect2 = Rect2()
 var _boss_bar_container: Control
 
 
@@ -178,6 +182,7 @@ func _build_action_buttons() -> void:
 	button_layer.position = Vector2(0.0, 1400.0)
 	button_layer.size = Vector2(1080.0, 192.0)
 	add_child(button_layer)
+	button_layer.mouse_filter = Control.MOUSE_FILTER_PASS
 
 	var button_xs: Array[float] = [20.0, 284.0, 548.0, 812.0]
 	for button_x in button_xs:
@@ -197,6 +202,15 @@ func _build_action_buttons() -> void:
 
 		button_layer.add_child(button_rect)
 		_action_buttons.append(button_rect)
+
+	# Store menu button screen rect for input checking
+	if _action_buttons.size() > 0:
+		var menu_btn_rect: ColorRect = _action_buttons[0]
+		var menu_lbl: Label = menu_btn_rect.get_child(0)
+		menu_lbl.text = "Menu"
+		# button_layer is at y=1400, button_rect is at x=20, y=60, size 248x72
+		# Rect will be calculated dynamically in _input using node position
+		_menu_button_screen_rect = Rect2(20.0, 1460.0, 248.0, 72.0)
 
 
 func _build_boss_bar() -> void:
@@ -230,7 +244,9 @@ func _build_boss_bar() -> void:
 	_boss_bar_container.add_child(boss_name_label)
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	if _menu_btn_cooldown > 0.0:
+		_menu_btn_cooldown -= delta
 	_refresh_spell_cd()
 	_refresh_summon()
 	update_mana_display()
@@ -346,3 +362,32 @@ func _on_summon_hp_changed(current: float, maximum: float) -> void:
 
 func _on_summon_recharge_tick(seconds: float) -> void:
 	_show_summon_recharging(seconds)
+
+
+func _input(event: InputEvent) -> void:
+	if _menu_btn_cooldown > 0.0:
+		return
+	# Recalculate menu rect dynamically accounting for viewport scale
+	var vp := get_viewport()
+	var vp_size := vp.get_visible_rect().size
+	var scale_x := vp_size.x / 1080.0
+	var scale_y := vp_size.y / 1920.0
+	var dynamic_rect := Rect2(
+		20.0 * scale_x,
+		1460.0 * scale_y,
+		248.0 * scale_x,
+		72.0 * scale_y
+	)
+	var fired := false
+	if event is InputEventScreenTouch and event.pressed:
+		if dynamic_rect.has_point(event.position):
+			fired = true
+	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if dynamic_rect.has_point(event.position):
+			fired = true
+	elif event.is_action_pressed("ui_cancel"):
+		fired = true
+	if fired:
+		_menu_btn_cooldown = 0.3
+		emit_signal("menu_button_pressed")
+		get_viewport().set_input_as_handled()

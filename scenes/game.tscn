@@ -112,4 +112,4 @@ offset_bottom = -2430.0
 [node name="CraftingUI" parent="." unique_id=503240979 instance=ExtResource("9_0tnpc")]
 layer = 10
 
-[node name="ControlStrip" parent="." unique_id=1990906187 instance=ExtResource("11_kvpfn")]
+[node name="ControlStrip" parent="." unique_id=1990906187 groups=["control_strip"] instance=ExtResource("11_kvpfn")]

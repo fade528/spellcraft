@@ -88,7 +88,14 @@ Known remaining issues:
 
 ---
 
-### Session 2.43 — Spec Editor Tome Integration (NEXT)
+## Session 2.43 — Spec Editor Tome Integration ✅ COMPLETE
+Delivered: Unified spec+page editor, menu button, Android CSV fix.
+
+## Session 2.44 — Partner Feedback Integration
+Goal: Integrate partner playtesting notes from feedback.md.
+Expected scope: spell feel tuning, enemy behaviour adjustments, 
+UI feedback from Android testing.
+Open prompt: Upload context.md, systems.md, feedback.md to begin.
 
 ```
 Read context.md and systems.md first.
@@ -247,7 +254,7 @@ with our architecture decisions:
 | 2.4 — Element Drops | ✅ Complete | Element drop system, summon HP bar, element counter HUD |
 | 2.41 — Mana & School System | ✅ Complete | Generic mana orbs, mana pool, school gating, SpecData, SpecManager, mana HUD |
 | 2.42 — CraftingUI Redesign | ✅ Complete | 6 bug fixes, spec list 10 slots, spec editor, per-spec tome, mana allocation UI, Save as Spec |
-| 2.43 — Spec Editor Tome Integration | ⬜ Pending | Inline page navigator in spec editor, remove separate Tome view |
+| 2.43 — Spec Editor Tome Integration | ✅ Complete | Inline page navigator in spec editor, remove separate Tome view, resolve android export not picking up the csv |
 | 2.5 — Spell Slots | ⬜ Pending | |
 | 3.1 — Boss State Machine | ⬜ Pending | |
 | 3.2 — First Boss | ⬜ Pending | |

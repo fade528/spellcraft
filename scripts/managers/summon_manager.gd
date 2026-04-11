@@ -65,6 +65,11 @@ func spawn_summon(element: String) -> void:
 		current_scene.add_child.call_deferred(summon_root)
 		if _player_ref != null and is_instance_valid(_player_ref):
 			summon_root.global_position = _player_ref.global_position + Vector2(30, 0)
+		else:
+			# _player_ref not set yet — retry position after one frame
+			await get_tree().process_frame
+			if _player_ref != null and is_instance_valid(_player_ref) and is_instance_valid(summon_root):
+				summon_root.global_position = _player_ref.global_position + Vector2(30, 0)
 		_current_element = element
 		_attack_timer_elapsed = 0.0
 		_summon_invincible = false
