@@ -553,3 +553,5 @@ res://scenes/deliveries/ with scripts under res://scripts/deliveries/.
 
 **PassiveManager new API (Session 2.47):**
   get_damage_amp() -> float   # rootedpower amp, 0.0 when moving
+
+  

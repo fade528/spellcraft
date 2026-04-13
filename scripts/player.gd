@@ -25,6 +25,7 @@ var facing_rotation := 0.0
 var is_invincible := false
 var iframe_tween: Tween
 var speed_bonus: float = 0.0
+var _heal_flash_tween: Tween = null
 
 
 func _ready() -> void:
@@ -70,7 +71,7 @@ func _ready() -> void:
 
 
 func _refresh_all_casters() -> void:
-	var tm = get_node_or_null("/root/TomeManager")
+	var tm := get_node_or_null("/root/TomeManager")
 	if tm == null:
 		return
 	var page = tm.get_active_page()
@@ -78,6 +79,7 @@ func _refresh_all_casters() -> void:
 		return
 	page.ensure_slots(4)
 
+	# First pass: refresh all casters with their spell data
 	var slot_idx := 0
 	for child in get_children():
 		if not child.has_method("refresh_spell"):
@@ -97,6 +99,49 @@ func _refresh_all_casters() -> void:
 			str(slot.get("target", "enemy"))
 		)
 		slot_idx += 1
+
+	# Second pass: collect only casters that will actively fire
+	# Excludes: empty elemental, utility delivery, stop-cast slots (holy/dark)
+	var spell_composer := get_node_or_null("/root/SpellComposer")
+	var active_casters: Array = []
+	for child in get_children():
+		if not child.has_method("refresh_spell"):
+			continue
+		var el: String = str(child.get("elemental_element") if child.get("elemental_element") != null else "")
+		var delivery: String = str(child.get("delivery_type") if child.get("delivery_type") != null else "")
+		if el == "" or el == "-":
+			continue
+		if delivery == "" or delivery == "-" or delivery == "utility":
+			continue
+		if spell_composer != null and spell_composer.has_method("is_stop_cast"):
+			if spell_composer.is_stop_cast(el):
+				continue
+		active_casters.append(child)
+
+	# Third pass: distribute stagger evenly across active casters
+	var count := active_casters.size()
+	if count == 0:
+		return
+
+	# Find the shortest cooldown among active casters to use as the interval basis
+	var min_cd: float = 99.0
+	for caster in active_casters:
+		var sd = caster.get("spell_data")
+		if sd != null and sd.has_method("get") == false:
+			var cd: float = float(sd.get("cooldown") if "cooldown" in sd else 99.0)
+			if cd < min_cd:
+				min_cd = cd
+	# Fallback if spell_data not yet composed
+	if min_cd >= 99.0:
+		min_cd = 2.0
+
+	var interval: float = min_cd / float(count)
+	interval = maxf(interval, 0.5)
+
+	for i in range(count):
+		var caster = active_casters[i]
+		if caster.has_method("set_stagger_delay"):
+			caster.call("set_stagger_delay", float(i) * interval)
 
 
 func _input(event: InputEvent) -> void:
@@ -196,6 +241,16 @@ func _set_touchpad_visible(is_visible: bool) -> void:
 
 func apply_speed_bonus(bonus: float) -> void:
 	speed_bonus = bonus
+
+
+func flash_heal() -> void:
+	if _heal_flash_tween != null:
+		_heal_flash_tween.kill()
+	# Flash the whole player node so triangle + marker both show green
+	modulate = Color(0.2, 1.0, 0.3, 1.0)
+	_heal_flash_tween = create_tween()
+	_heal_flash_tween.tween_property(self, "modulate", Color(0.2, 1.0, 0.3, 1.0), 0.12)
+	_heal_flash_tween.tween_property(self, "modulate", Color(1.0, 1.0, 1.0, 1.0), 0.2)
 
 
 func take_damage(amount: float, element: String = "") -> void:

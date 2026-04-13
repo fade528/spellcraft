@@ -18,6 +18,9 @@ var _stagger_elapsed: bool = true
 var _stop_cast_pending: bool = false
 var _stop_cast_timer: float = 0.0
 var _cd_reduction: float = 0.0
+var _cast_count: int = 0
+var _overheat_amp: float = 1.0
+var _overheat_ready: bool = false
 
 const DELIVERY_SCENES: Dictionary = {
 	"bolt":    preload("res://scenes/deliveries/bolt.tscn"),
@@ -35,7 +38,7 @@ func _ready() -> void:
 	if cooldown_timer == null:
 		cooldown_timer = Timer.new()
 		cooldown_timer.name = "CooldownTimer"
-		cooldown_timer.one_shot = false
+		cooldown_timer.one_shot = true
 		add_child(cooldown_timer)
 	add_to_group("spell_casters")
 	var sm_init: Node = get_node_or_null("/root/SummonManager")
@@ -50,11 +53,10 @@ func _configure_cooldown_timer() -> void:
 	if _is_stop_cast_slot():
 		cooldown_timer.stop()
 		return
-
 	if spell_data == null:
 		return
-
-	cooldown_timer.wait_time = maxf(spell_data.cooldown - _cd_reduction, 1.5)
+	var full_cd: float = maxf(spell_data.cooldown - _cd_reduction, 1.5)
+	cooldown_timer.wait_time = full_cd
 	if not cooldown_timer.timeout.is_connected(_on_cooldown_timer_timeout):
 		cooldown_timer.timeout.connect(_on_cooldown_timer_timeout)
 	if _stagger_elapsed and cooldown_timer.is_stopped():
@@ -144,6 +146,22 @@ func _try_stop_cast_fire() -> void:
 	var _passmgr = get_node_or_null("/root/PassiveManager")
 	if _passmgr != null and _passmgr.has_method("get_damage_amp"):
 		final_dmg *= (1.0 + _passmgr.get_damage_amp())
+	if _passmgr != null and _passmgr.has_method("get_bloodpower_amp"):
+		final_dmg *= (1.0 + _passmgr.get_bloodpower_amp())
+	_check_overheat()
+	if _overheat_ready:
+		var _oh_dmg := final_dmg * _overheat_amp
+		var _oh_pos := spawn_position
+		var _oh_dir := shot_direction
+		var _oh_weak := weakness
+		var _oh_timer := get_tree().create_timer(0.3)
+		_oh_timer.timeout.connect(func() -> void:
+			if not is_instance_valid(self):
+				return
+			_spawn_delivery(_oh_pos, _oh_dir, _oh_dmg, _oh_weak)
+			_overheat_amp = 1.0
+			_overheat_ready = false
+		)
 	_spawn_delivery(spawn_position, shot_direction, final_dmg, weakness)
 
 
@@ -151,6 +169,66 @@ func apply_cd_reduction(reduction: float) -> void:
 	_cd_reduction = reduction
 	if cooldown_timer != null and not cooldown_timer.is_stopped():
 		cooldown_timer.wait_time = maxf(cooldown_timer.wait_time - reduction, 1.5)
+
+
+func apply_cd_reduction_instant(seconds: float) -> void:
+	if cooldown_timer == null or cooldown_timer.is_stopped():
+		return
+	var full_cd: float = maxf(spell_data.cooldown - _cd_reduction, 1.5) if spell_data != null else 1.5
+	var new_time := maxf(cooldown_timer.time_left - seconds, 0.1)
+	cooldown_timer.wait_time = full_cd
+	cooldown_timer.stop()
+	cooldown_timer.start(new_time)
+
+
+func _check_overheat() -> void:
+	var _pm := get_node_or_null("/root/PassiveManager")
+	if _pm == null or not _pm.has_method("get_overheat_effect"):
+		return
+	var effect: Dictionary = _pm.get_overheat_effect()
+	if effect.is_empty():
+		return
+	var threshold_raw: Variant = effect.get("value1", 0.0)
+	var threshold_f := 0.0
+	if threshold_raw is float:
+		threshold_f = threshold_raw
+	elif threshold_raw is int:
+		threshold_f = float(threshold_raw)
+	elif threshold_raw is String and (threshold_raw as String).is_valid_float():
+		threshold_f = (threshold_raw as String).to_float()
+	var tier: int = effect.get("tier", 0)
+	var scale_raw: Variant = effect.get("scale_value1", 0.0)
+	var scale_f := 0.0
+	if scale_raw is float:
+		scale_f = scale_raw
+	elif scale_raw is int:
+		scale_f = float(scale_raw)
+	elif scale_raw is String and (scale_raw as String).is_valid_float():
+		scale_f = (scale_raw as String).to_float()
+	var threshold: int = roundi(threshold_f + scale_f * float(tier))
+	if threshold <= 0:
+		return
+	_cast_count += 1
+	if _cast_count >= threshold:
+		_cast_count = 0
+		var amp_raw: Variant = effect.get("value2", 0.0)
+		var amp_f := 0.0
+		if amp_raw is float:
+			amp_f = amp_raw
+		elif amp_raw is int:
+			amp_f = float(amp_raw)
+		elif amp_raw is String and (amp_raw as String).is_valid_float():
+			amp_f = (amp_raw as String).to_float()
+		var amp_scale_raw: Variant = effect.get("scale_value2", 0.0)
+		var amp_scale_f := 0.0
+		if amp_scale_raw is float:
+			amp_scale_f = amp_scale_raw
+		elif amp_scale_raw is int:
+			amp_scale_f = float(amp_scale_raw)
+		elif amp_scale_raw is String and (amp_scale_raw as String).is_valid_float():
+			amp_scale_f = (amp_scale_raw as String).to_float()
+		_overheat_amp = 1.0 + amp_f + amp_scale_f * float(tier)
+		_overheat_ready = true
 
 
 func _recompose_spell() -> void:
@@ -238,7 +316,26 @@ func _on_cooldown_timer_timeout() -> void:
 	var _passmgr = get_node_or_null("/root/PassiveManager")
 	if _passmgr != null and _passmgr.has_method("get_damage_amp"):
 		final_dmg *= (1.0 + _passmgr.get_damage_amp())
+	if _passmgr != null and _passmgr.has_method("get_bloodpower_amp"):
+		final_dmg *= (1.0 + _passmgr.get_bloodpower_amp())
+	_check_overheat()
+	if _overheat_ready:
+		var _oh_dmg := final_dmg * _overheat_amp
+		var _oh_pos := global_position + fire_offset
+		var _oh_dir := shot_direction
+		var _oh_weak := weakness
+		var _oh_timer := get_tree().create_timer(0.3)
+		_oh_timer.timeout.connect(func() -> void:
+			if not is_instance_valid(self):
+				return
+			_spawn_delivery(_oh_pos, _oh_dir, _oh_dmg, _oh_weak)
+			_overheat_amp = 1.0
+			_overheat_ready = false
+		)
 	_spawn_delivery(spawn_position, shot_direction, final_dmg, weakness)
+	var full_cd: float = maxf(spell_data.cooldown - _cd_reduction, 1.5) if spell_data != null else 1.5
+	cooldown_timer.wait_time = full_cd
+	cooldown_timer.start()
 
 
 func _spawn_delivery(spawn_pos: Vector2, shot_dir: Vector2, final_dmg: float, weakness: float) -> void:

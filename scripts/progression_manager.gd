@@ -27,6 +27,9 @@ func take_damage(amount: float) -> void:
 func heal(amount: float) -> void:
 	current_hp = minf(current_hp + amount, max_hp)
 	hp_changed.emit(current_hp, max_hp)
+	var player_node := get_tree().get_first_node_in_group("player")
+	if player_node != null and player_node.has_method("flash_heal"):
+		player_node.flash_heal()
 
 
 func register_debuff(debuff_name: String) -> void:

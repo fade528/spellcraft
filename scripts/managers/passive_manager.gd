@@ -24,6 +24,7 @@ var _dispel_still_timer: float = 0.0
 var _dispel_pending: bool = false
 var _rootedpower_still_timer: float = 0.0
 var _rootedpower_amp: float = 0.0
+var _killfuel_last_physics_frame: int = -1
 
 
 func _ready() -> void:
@@ -595,3 +596,77 @@ func _append_passive_rows(
 
 func is_iceshield_active() -> bool:
 	return _iceshield_active
+
+
+func on_enemy_killed() -> void:
+	var current_frame := Engine.get_physics_frames()
+	if current_frame == _killfuel_last_physics_frame:
+		return
+	_killfuel_last_physics_frame = current_frame
+	if _player == null or not is_instance_valid(_player):
+		return
+	var prog := get_node_or_null("/root/ProgressionManager")
+	if prog != null and prog.has_method("is_dead") and prog.is_dead():
+		return
+	var killfuel_effect: Dictionary = {}
+	for effect in _active_passives:
+		if effect.get("effect_name", "") == "killfuel":
+			killfuel_effect = effect
+			break
+	if killfuel_effect.is_empty():
+		return
+	var cd_cut: float = _scaled(killfuel_effect, "value1", "scale_value1")
+	if cd_cut <= 0.0:
+		return
+	for caster in get_tree().get_nodes_in_group("spell_casters"):
+		if is_instance_valid(caster) and caster.has_method("apply_cd_reduction_instant"):
+			caster.apply_cd_reduction_instant(cd_cut)
+
+
+func get_overheat_effect() -> Dictionary:
+	for effect in _active_passives:
+		if effect.get("effect_name", "") == "overheat":
+			return effect
+	return {}
+
+
+func get_bloodpower_amp() -> float:
+	var effect: Dictionary = {}
+	for e in _active_cast_passives:
+		if e.get("effect_name", "") == "bloodpower":
+			effect = e
+			break
+	if effect.is_empty():
+		return 0.0
+	var pm := get_node_or_null("/root/ProgressionManager")
+	if pm == null:
+		return 0.0
+	var current_hp: float = 0.0
+	var max_hp: float = 100.0
+	if _has_property(pm, "current_hp"):
+		current_hp = float(pm.get("current_hp"))
+	elif pm.has_method("get_current_hp"):
+		current_hp = float(pm.call("get_current_hp"))
+	if _has_property(pm, "max_hp"):
+		max_hp = float(pm.get("max_hp"))
+	elif pm.has_method("get_max_hp"):
+		max_hp = float(pm.call("get_max_hp"))
+	if max_hp <= 0.0:
+		return 0.0
+	var hp_pct: float = current_hp / max_hp
+	var threshold_high: float = _scaled(effect, "value1", "scale_value1")
+	var threshold_low: float = _scaled(effect, "value2", "scale_value2")
+	var amp_medium: float = _scaled(effect, "value3", "scale_value3")
+	var amp_low: float = _scaled(effect, "value4", "scale_value4")
+	if hp_pct < threshold_low:
+		return amp_low
+	elif hp_pct < threshold_high:
+		return amp_medium
+	return 0.0
+
+
+func get_soulsiphon_leech() -> float:
+	for effect in _active_cast_passives:
+		if effect.get("effect_name", "") == "soulsiphon":
+			return _scaled(effect, "value1", "scale_value1")
+	return 0.0

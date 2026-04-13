@@ -144,6 +144,11 @@ func take_damage(amount: float, attacker_element: String = "") -> void:
 	_spawn_damage_number(final_damage, is_crit)
 
 	if current_hp <= 0.0:
+		var _player_node = get_tree().get_first_node_in_group("player")
+		if _player_node != null and is_instance_valid(_player_node):
+			var _pm_kf = get_node_or_null("/root/PassiveManager")
+			if _pm_kf != null and _pm_kf.has_method("on_enemy_killed"):
+				_pm_kf.on_enemy_killed()
 		_spawn_death_particles()
 		died.emit()
 		spawn_drop()
@@ -228,6 +233,18 @@ func _play_hit_flash() -> void:
 	hit_flash_tween.tween_property(_sprite, "color", base_color, 0.05)
 
 
+func _flash_debuff_colour(colour: Color) -> void:
+	if _sprite == null or not is_instance_valid(_sprite):
+		return
+	if hit_flash_tween != null:
+		hit_flash_tween.kill()
+	var base_color := _sprite.color
+	hit_flash_tween = create_tween()
+	hit_flash_tween.tween_property(_sprite, "color", colour, 0.05)
+	hit_flash_tween.tween_property(_sprite, "color", colour, 0.15)
+	hit_flash_tween.tween_property(_sprite, "color", base_color, 0.1)
+
+
 func _spawn_death_particles() -> void:
 	var parent_node := get_parent()
 	if parent_node == null:
@@ -260,20 +277,25 @@ func _spawn_death_particles() -> void:
 
 
 func apply_burn(dmg_per_tick: float, interval: float, duration: float) -> void:
-	_burn_damage = dmg_per_tick
-	_burn_interval = max(interval, 0.1)
+	_burn_interval = maxf(interval, 0.1)
 	_burn_ticks_remaining = int(round(duration / _burn_interval))
 
 	if _burn_timer != null and is_instance_valid(_burn_timer):
+		# Stack: add to existing damage per tick, reset duration
+		_burn_damage += dmg_per_tick
 		_burn_timer.wait_time = _burn_interval
+		_flash_debuff_colour(Color(1.0, 0.35, 0.0, 1.0))
 		return
 
+	# Fresh application
+	_burn_damage = dmg_per_tick
 	_burn_timer = Timer.new()
 	_burn_timer.wait_time = _burn_interval
 	_burn_timer.one_shot = false
 	_burn_timer.timeout.connect(_on_burn_tick)
 	add_child(_burn_timer)
 	_burn_timer.start(_burn_interval)
+	_flash_debuff_colour(Color(1.0, 0.35, 0.0, 1.0))
 
 
 func _on_burn_tick() -> void:
@@ -316,6 +338,7 @@ func apply_slow(amount: float, duration: float) -> void:
 		_slow_timer.stop()
 
 	_slow_timer.start(max(duration, 0.0))
+	_flash_debuff_colour(Color(0.45, 0.85, 1.0, 1.0))
 
 
 func apply_stagger(chance: float, duration: float) -> void:
@@ -393,6 +416,7 @@ func apply_blind(duration: float) -> void:
 		_blind_timer.stop()
 
 	_blind_timer.start(max(duration, 0.0))
+	_flash_debuff_colour(Color(0.95, 0.95, 0.95, 1.0))
 
 
 func execute(chance: float) -> void:
@@ -416,6 +440,7 @@ func apply_wet(duration: float = 5.0) -> void:
 		_wet_timer.stop()
 
 	_wet_timer.start(max(duration, 0.0))
+	_flash_debuff_colour(Color(0.05, 0.15, 0.8, 1.0))
 
 
 func apply_corruption(dmg_per_tick: float, interval: float, duration: float) -> void:
@@ -428,6 +453,7 @@ func apply_corruption(dmg_per_tick: float, interval: float, duration: float) -> 
 		_corruption_interval = max(interval, 0.1)
 		_corruption_ticks_remaining = int(round(duration / _corruption_interval))
 		_corruption_timer.wait_time = _corruption_interval
+		_flash_debuff_colour(Color(0.55, 0.0, 0.8, 1.0))
 		return
 
 	_corruption_timer = Timer.new()
@@ -436,6 +462,7 @@ func apply_corruption(dmg_per_tick: float, interval: float, duration: float) -> 
 	_corruption_timer.timeout.connect(_on_corruption_tick)
 	add_child(_corruption_timer)
 	_corruption_timer.start(_corruption_interval)
+	_flash_debuff_colour(Color(0.55, 0.0, 0.8, 1.0))
 
 
 func apply_chill(duration: float = 3.0) -> void:
@@ -450,6 +477,7 @@ func apply_chill(duration: float = 3.0) -> void:
 		_chill_timer.stop()
 
 	_chill_timer.start(max(duration, 0.0))
+	_flash_debuff_colour(Color(0.45, 0.85, 1.0, 1.0))
 
 
 func apply_purge(count: int) -> void:

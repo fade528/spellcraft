@@ -63,6 +63,13 @@ func _on_area_entered(area: Area2D) -> void:
 		return
 	if target.has_method("take_damage"):
 		target.take_damage(damage)
+		var _pm_ss := get_node_or_null("/root/PassiveManager")
+		if _pm_ss != null and _pm_ss.has_method("get_soulsiphon_leech"):
+			var _ss_leech: float = _pm_ss.get_soulsiphon_leech()
+			if _ss_leech > 0.0:
+				var _prog_ss := get_node_or_null("/root/ProgressionManager")
+				if _prog_ss != null and _prog_ss.has_method("heal"):
+					_prog_ss.heal(spell_final_dmg * _ss_leech)
 		_apply_on_hit_effects(target)
 		hit.emit(target, damage)
 		queue_free()
@@ -157,11 +164,6 @@ func _apply_on_hit_effects(target: Node) -> void:
 			"execute":
 				if target.has_method("execute"):
 					target.execute(_scaled(effect, "value1", "scale_value1"))
-			"soulsiphon":
-				var heal: float = spell_final_dmg * _scaled(effect, "value1", "scale_value1")
-				var pm: Node = get_node_or_null("/root/ProgressionManager")
-				if pm != null and pm.has_method("heal"):
-					pm.heal(heal)
 			"radiance":
 				if target.has_method("apply_blind"):
 					target.apply_blind(_scaled(effect, "value1", "scale_value1"))

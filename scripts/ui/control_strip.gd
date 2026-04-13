@@ -19,6 +19,18 @@ const BUFF_COLOURS := {
 	"holy": Color(0.95, 0.95, 0.85),
 	"dark": Color(0.56, 0.25, 0.75)
 }
+const DEBUFF_FLASH_COLOURS := {
+	"burn":    Color(1.0,  0.35, 0.0,  1.0),
+	"burndot": Color(1.0,  0.35, 0.0,  1.0),
+	"wet":     Color(0.05, 0.15, 0.6,  1.0),
+	"chilled": Color(0.45, 0.85, 1.0,  1.0),
+	"chill":   Color(0.45, 0.85, 1.0,  1.0),
+	"slow":    Color(0.45, 0.85, 1.0,  1.0),
+	"blind":   Color(0.95, 0.95, 0.95, 1.0),
+	"corrupt": Color(0.55, 0.0,  0.8,  1.0),
+	"stagger": Color(0.9,  0.7,  0.1,  1.0),
+	"brittle": Color(0.6,  0.9,  1.0,  1.0),
+}
 
 var _hp_bar: ProgressBar
 var _hp_label: Label
@@ -32,6 +44,9 @@ var _menu_btn_cooldown: float = 0.0
 var _buff_refresh_timer: float = 0.0
 var _menu_button_screen_rect: Rect2 = Rect2()
 var _boss_bar_container: Control
+var _slot_cd_labels: Array[Label] = []
+var _slot_cd_bars: Array[ColorRect] = []
+var _slot_cd_bar_bgs: Array[ColorRect] = []
 
 
 func _ready() -> void:
@@ -98,6 +113,7 @@ func _ready() -> void:
 		var margin = hud.get_node_or_null("MarginContainer")
 		if margin != null:
 			margin.visible = false
+	_build_slot_cd_row()
 
 
 func _build_hp_row() -> void:
@@ -119,8 +135,9 @@ func _build_hp_row() -> void:
 
 	_buff_row = HBoxContainer.new()
 	_buff_row.name = "BuffRow"
-	_buff_row.position = Vector2(40.0, 44.0)
-	_buff_row.size = Vector2(SCREEN_WIDTH - 80.0, 24.0)
+	_buff_row.position = Vector2(10.0, 44.0)
+	_buff_row.size = Vector2(SCREEN_WIDTH - 20.0, 36.0)
+	_buff_row.add_theme_constant_override("separation", 8)
 	strip_panel.add_child(_buff_row)
 
 	for i in range(3):
@@ -262,6 +279,44 @@ func _build_boss_bar() -> void:
 	_boss_bar_container.add_child(boss_name_label)
 
 
+func _build_slot_cd_row() -> void:
+	# Hide the original single spell_cd_label — replaced by the 4-slot row
+	spell_cd_label.visible = false
+
+	var slot_width: float = SCREEN_WIDTH / 4.0
+	for i in range(4):
+		var cx: float = slot_width * (i + 0.5)
+
+		# Background bar
+		var bg := ColorRect.new()
+		bg.size = Vector2(slot_width - 20.0, 6.0)
+		bg.position = Vector2(slot_width * i + 10.0, 158.0)
+		bg.color = Color(0.1, 0.1, 0.1, 0.6)
+		strip_panel.add_child(bg)
+		_slot_cd_bar_bgs.append(bg)
+
+		# Fill bar
+		var bar := ColorRect.new()
+		bar.size = Vector2(0.0, 6.0)
+		bar.position = Vector2(slot_width * i + 10.0, 158.0)
+		bar.color = Color(0.2, 0.8, 1.0, 0.85)
+		strip_panel.add_child(bar)
+		_slot_cd_bars.append(bar)
+
+		# Label
+		var lbl := Label.new()
+		lbl.position = Vector2(cx - 60.0, 130.0)
+		lbl.size = Vector2(120.0, 28.0)
+		lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		lbl.add_theme_font_size_override("font_size", 20)
+		lbl.add_theme_color_override("font_color", Color.WHITE)
+		lbl.add_theme_color_override("font_outline_color", Color(0.0, 0.0, 0.0, 1.0))
+		lbl.add_theme_constant_override("outline_size", 2)
+		lbl.text = "S%d —" % (i + 1)
+		strip_panel.add_child(lbl)
+		_slot_cd_labels.append(lbl)
+
+
 func _process(delta: float) -> void:
 	if _menu_btn_cooldown > 0.0:
 		_menu_btn_cooldown -= delta
@@ -280,61 +335,80 @@ func _refresh_buffs() -> void:
 	for child in _buff_row.get_children():
 		child.queue_free()
 
-	var pm = get_node_or_null("/root/PassiveManager")
+	var pm := get_node_or_null("/root/PassiveManager")
 	if pm == null:
 		return
 	var passives: Array = pm._active_passives
-	if passives.is_empty():
-		return
 
 	var seen: Dictionary = {}
 	for effect in passives:
 		if not effect is Dictionary:
 			continue
 		var effect_dict := effect as Dictionary
-		var name: String = str(effect_dict.get("effect_name", ""))
-		if name == "" or seen.has(name):
+		var effect_name: String = str(effect_dict.get("effect_name", ""))
+		if effect_name == "" or seen.has(effect_name):
 			continue
 
-		if name == "iceshield":
-			if pm != null and pm.has_method("is_iceshield_active"):
-				if not pm.is_iceshield_active():
-					continue
-		if name == "flowstate":
+		if effect_name == "iceshield":
+			if not pm.is_iceshield_active():
+				continue
+		if effect_name == "flowstate":
 			if not pm.get("_flowstate_active"):
 				continue
+		if effect_name == "overheat":
+			var player_node := get_tree().get_first_node_in_group("player")
+			if player_node != null:
+				var oh_ready := false
+				for child in player_node.get_children():
+					if child.has_method("refresh_spell"):
+						var ready_val = child.get("_overheat_ready")
+						if ready_val is bool and ready_val == true:
+							oh_ready = true
+							break
+				if not oh_ready:
+					continue
 		# rootedpower, bloodpower etc. can add state checks here when implemented.
 
-		seen[name] = true
+		seen[effect_name] = true
 
 		var element: String = str(effect_dict.get("element", "")).to_lower()
-		var colour: Color = BUFF_COLOURS.get(element, Color(0.7, 0.7, 0.7))
+		var badge_colour: Color = BUFF_COLOURS.get(element, Color(0.7, 0.7, 0.7))
+		var is_debuff: bool = DEBUFF_FLASH_COLOURS.has(effect_name)
+		var flash_colour: Color = DEBUFF_FLASH_COLOURS.get(effect_name, badge_colour)
 
 		var wrapper := PanelContainer.new()
 		var style := StyleBoxFlat.new()
-		style.bg_color = Color(colour.r, colour.g, colour.b, 0.2)
+		style.bg_color = Color(flash_colour.r, flash_colour.g, flash_colour.b, 0.2) if is_debuff else Color(badge_colour.r, badge_colour.g, badge_colour.b, 0.2)
 		style.set_corner_radius_all(4)
-		style.border_color = colour
+		style.border_color = flash_colour if is_debuff else badge_colour
 		style.border_width_left = 1
 		style.border_width_right = 1
 		style.border_width_top = 1
 		style.border_width_bottom = 1
-		style.content_margin_left = 6
-		style.content_margin_right = 6
-		style.content_margin_top = 1
-		style.content_margin_bottom = 1
+		style.content_margin_left = 12
+		style.content_margin_right = 12
+		style.content_margin_top = 4
+		style.content_margin_bottom = 4
 		wrapper.add_theme_stylebox_override("panel", style)
 
 		var lbl := Label.new()
-		lbl.text = name.replace("_", " ").capitalize()
-		lbl.add_theme_font_size_override("font_size", 16)
-		lbl.add_theme_color_override("font_color", colour)
+		lbl.text = effect_name.replace("_", " ").capitalize()
+		lbl.add_theme_font_size_override("font_size", 22)
+		lbl.add_theme_color_override("font_color", flash_colour if is_debuff else badge_colour)
 		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		wrapper.add_child(lbl)
 
 		_buff_row.add_child(wrapper)
+
+		# Flash tween for debuffs only
+		if is_debuff:
+			var tween := wrapper.create_tween()
+			tween.set_loops()
+			tween.tween_property(wrapper, "modulate:a", 0.25, 0.35)
+			tween.tween_property(wrapper, "modulate:a", 1.0,  0.35)
+
 		var spacer := Control.new()
-		spacer.custom_minimum_size = Vector2(6, 0)
+		spacer.custom_minimum_size = Vector2(10, 0)
 		_buff_row.add_child(spacer)
 
 
@@ -356,24 +430,66 @@ func _refresh_page() -> void:
 
 
 func _refresh_spell_cd() -> void:
-	var player = get_tree().get_first_node_in_group("player")
-	if player == null:
-		spell_cd_label.text = ""
+	if _slot_cd_labels.is_empty():
 		return
-	var casters = player.find_children("*", "Node2D", true, false)
-	for child in casters:
-		if child.has_method("refresh_spell") and child.get("spell_data") != null:
-			var sd = child.get("spell_data")
-			if sd != null:
-				var timer = child.get_node_or_null("CooldownTimer")
-				if timer != null:
-					var remaining: float = (timer as Timer).time_left
-					if remaining > 0.05:
-						spell_cd_label.text = "CD: %.1fs" % remaining
-					else:
-						spell_cd_label.text = "CD: Ready"
-					return
-	spell_cd_label.text = ""
+	var player := get_tree().get_first_node_in_group("player")
+	if player == null:
+		for i in range(4):
+			_slot_cd_labels[i].text = "S%d —" % (i + 1)
+			_slot_cd_bars[i].size.x = 0.0
+		return
+
+	var casters: Array = []
+	for child in player.get_children():
+		if child.has_method("refresh_spell"):
+			casters.append(child)
+
+	for i in range(4):
+		var lbl: Label = _slot_cd_labels[i]
+		var bar: ColorRect = _slot_cd_bars[i]
+		var bg: ColorRect = _slot_cd_bar_bgs[i]
+		var max_width: float = bg.size.x
+
+		if i >= casters.size():
+			lbl.text = "S%d —" % (i + 1)
+			bar.size.x = 0.0
+			continue
+
+		var caster = casters[i]
+		var sd = caster.get("spell_data")
+		if sd == null:
+			lbl.text = "S%d —" % (i + 1)
+			bar.size.x = 0.0
+			continue
+
+		var el: String = str(caster.get("elemental_element") if caster.get("elemental_element") != null else "")
+		var delivery: String = str(caster.get("delivery_type") if caster.get("delivery_type") != null else "")
+
+		var timer: Timer = caster.get_node_or_null("CooldownTimer")
+		if timer == null or delivery == "utility":
+			lbl.text = "S%d —" % (i + 1)
+			bar.size.x = 0.0
+			continue
+
+		var remaining: float = timer.time_left
+		var full_cd: float = maxf(float(sd.get("cooldown") if "cooldown" in sd else 2.0), 1.5)
+		var cd_reduction: float = float(caster.get("_cd_reduction") if caster.get("_cd_reduction") != null else 0.0)
+		full_cd = maxf(full_cd - cd_reduction, 1.5)
+		var pct: float = clampf(1.0 - (remaining / full_cd), 0.0, 1.0)
+
+		if remaining <= 0.05:
+			lbl.text = "S%d RDY" % (i + 1)
+			lbl.add_theme_color_override("font_color", Color(0.3, 1.0, 0.4))
+			bar.size.x = max_width
+			bar.color = Color(0.3, 1.0, 0.4, 0.85)
+		else:
+			lbl.text = "S%d %.1f" % [i + 1, remaining]
+			lbl.add_theme_color_override("font_color", Color.WHITE)
+			bar.size.x = max_width * pct
+			if pct < 0.5:
+				bar.color = Color(1.0, pct * 2.0, 0.0, 0.85)
+			else:
+				bar.color = Color(1.0 - (pct - 0.5) * 2.0, 1.0, 0.0, 0.85)
 
 
 func _refresh_summon() -> void:

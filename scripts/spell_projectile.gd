@@ -113,6 +113,9 @@ func _apply_on_hit_effects(target: Node) -> void:
 						_scaled(effect, "value2", "scale_value2"),
 						_scaled(effect, "value3", "scale_value3")
 					)
+					var _pm_rd1 = get_node_or_null("/root/ProgressionManager")
+					if _pm_rd1 != null and _pm_rd1.has_method("register_debuff"):
+						_pm_rd1.register_debuff("burn")
 			"corruption":
 				var dmg_per_tick := spell_final_dmg * _scaled(effect, "value1", "scale_value1")
 				var interval := _scaled(effect, "value2", "scale_value2")
@@ -121,12 +124,18 @@ func _apply_on_hit_effects(target: Node) -> void:
 					target.apply_corruption(dmg_per_tick, interval, duration)
 				elif target.has_method("apply_burn"):
 					target.apply_burn(dmg_per_tick, interval, duration)
+				var _pm_rd2 = get_node_or_null("/root/ProgressionManager")
+				if _pm_rd2 != null and _pm_rd2.has_method("register_debuff"):
+					_pm_rd2.register_debuff("corrupt")
 			"chilled":
 				if target.has_method("apply_slow"):
 					target.apply_slow(
 						_scaled(effect, "value3", "scale_value3"),
 						_scaled(effect, "value2", "scale_value2")
 					)
+					var _pm_rd3 = get_node_or_null("/root/ProgressionManager")
+					if _pm_rd3 != null and _pm_rd3.has_method("register_debuff"):
+						_pm_rd3.register_debuff("slow")
 			"brittle":
 				if target.has_method("apply_brittle"):
 					target.apply_brittle(
@@ -153,6 +162,9 @@ func _apply_on_hit_effects(target: Node) -> void:
 						_scaled(effect, "value1", "scale_value1"),
 						_scaled(effect, "value2", "scale_value2")
 					)
+					var _pm_rd6 = get_node_or_null("/root/ProgressionManager")
+					if _pm_rd6 != null and _pm_rd6.has_method("register_debuff"):
+						_pm_rd6.register_debuff("stagger")
 			"splash":
 				_apply_aoe(
 					_scaled(effect, "value1", "scale_value1"),
@@ -161,23 +173,24 @@ func _apply_on_hit_effects(target: Node) -> void:
 				)
 				if target.has_method("apply_wet"):
 					target.apply_wet()
+					var _pm_rd4 = get_node_or_null("/root/ProgressionManager")
+					if _pm_rd4 != null and _pm_rd4.has_method("register_debuff"):
+						_pm_rd4.register_debuff("wet")
 			"tidal":
 				if target.has_method("apply_pushback"):
 					var tidal_pushback := _scaled(effect, "value1", "scale_value1")
 					target.apply_pushback(tidal_pushback)
 				if target.has_method("apply_wet"):
 					target.apply_wet()
+					var _pm_rd5 = get_node_or_null("/root/ProgressionManager")
+					if _pm_rd5 != null and _pm_rd5.has_method("register_debuff"):
+						_pm_rd5.register_debuff("wet")
 			"voidpull":
 				if target.has_method("apply_pushback"):
 					target.apply_pushback(-_scaled(effect, "value1", "scale_value1"))
 			"execute":
 				if target.has_method("execute"):
 					target.execute(_scaled(effect, "value1", "scale_value1"))
-			"soulsiphon":
-				var heal := spell_final_dmg * _scaled(effect, "value1", "scale_value1")
-				var pm := get_node_or_null("/root/ProgressionManager")
-				if pm != null and pm.has_method("heal"):
-					pm.heal(heal)
 			"radiance":
 				if target.has_method("apply_blind"):
 					target.apply_blind(_scaled(effect, "value1", "scale_value1"))
