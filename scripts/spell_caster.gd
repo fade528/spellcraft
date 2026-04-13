@@ -141,6 +141,9 @@ func _try_stop_cast_fire() -> void:
 	if inv2 != null and inv2.has_method("get_school_multiplier"):
 		school_mult = inv2.get_school_multiplier(elemental_element)
 	var final_dmg := item_base_dmg * school_mult
+	var _passmgr = get_node_or_null("/root/PassiveManager")
+	if _passmgr != null and _passmgr.has_method("get_damage_amp"):
+		final_dmg *= (1.0 + _passmgr.get_damage_amp())
 	_spawn_delivery(spawn_position, shot_direction, final_dmg, weakness)
 
 
@@ -232,6 +235,9 @@ func _on_cooldown_timer_timeout() -> void:
 	if _inv2 != null and _inv2.has_method("get_school_multiplier"):
 		school_mult = _inv2.get_school_multiplier(elemental_element)
 	var final_dmg := item_base_dmg * school_mult
+	var _passmgr = get_node_or_null("/root/PassiveManager")
+	if _passmgr != null and _passmgr.has_method("get_damage_amp"):
+		final_dmg *= (1.0 + _passmgr.get_damage_amp())
 	_spawn_delivery(spawn_position, shot_direction, final_dmg, weakness)
 
 

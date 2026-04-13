@@ -20,6 +20,7 @@ var current_hp: float
 var hit_flash_tween: Tween
 var _sprite: ColorRect
 var _burn_timer: Timer = null
+var _active_buffs: Array[String] = []
 var _burn_damage: float = 0.0
 var _burn_ticks_remaining: int = 0
 var _burn_interval: float = 1.0
@@ -449,6 +450,13 @@ func apply_chill(duration: float = 3.0) -> void:
 		_chill_timer.stop()
 
 	_chill_timer.start(max(duration, 0.0))
+
+
+func apply_purge(count: int) -> void:
+	for i in range(count):
+		if _active_buffs.is_empty():
+			break
+		_active_buffs.pop_back()
 
 
 func get_incoming_multiplier(attacker_element: String) -> float:

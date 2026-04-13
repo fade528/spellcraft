@@ -5,6 +5,8 @@ var element_resist: Dictionary = {}
 var cd_reduction: float = 0.0
 var move_speed_bonus: float = 0.0
 var _active_passives: Array[Dictionary] = []
+var _active_cast_passives: Array[Dictionary] = []
+var _active_enemy_passives: Array[Dictionary] = []
 var _consecration_timer: float = 0.0
 var _player: Node = null
 var _bubble_aura_ring: Line2D = null
@@ -17,6 +19,11 @@ var _iceshield_active: bool = false
 var _iceshield_duration_timer: float = 0.0
 var _iceshield_barrier_pct: float = 0.0
 var _iceshield_debug_timer: float = 0.0
+var _holylight_still_timer: float = 0.0
+var _dispel_still_timer: float = 0.0
+var _dispel_pending: bool = false
+var _rootedpower_still_timer: float = 0.0
+var _rootedpower_amp: float = 0.0
 
 
 func _ready() -> void:
@@ -127,6 +134,7 @@ func _process(delta: float) -> void:
 			return
 		var consecration_pos: Vector2 = _player.global_position
 
+		print("[Consecration] ticking dmg=%.2f radius=%.2f" % [dmg, radius])
 		for enemy in get_tree().get_nodes_in_group("enemies"):
 			if not is_instance_valid(enemy):
 				continue
@@ -214,6 +222,103 @@ func _process(delta: float) -> void:
 			else:
 				_iceshield_still_timer = 0.0
 
+	for effect in _active_cast_passives:
+		if effect.get("effect_name", "") != "holylight":
+			continue
+
+		var hl_stand: float = 3.5
+		var hl_stand_raw := str(effect.get("value1", 3.5)).strip_edges()
+		if hl_stand_raw.is_valid_float():
+			hl_stand = float(hl_stand_raw)
+		var hl_heal_pct: float = _scaled(effect, "value2", "scale_value2")
+
+		var hl_still := false
+		if _player != null and is_instance_valid(_player):
+			var hl_vel = _player.get("velocity")
+			if hl_vel is Vector2:
+				hl_still = (hl_vel as Vector2).length() <= 10.0
+
+		if hl_still:
+			_holylight_still_timer += delta
+			if _holylight_still_timer >= hl_stand:
+				_holylight_still_timer = 0.0
+				var hl_pm = get_node_or_null("/root/ProgressionManager")
+				if hl_pm != null:
+					var hl_max_hp: float = 100.0
+					if _has_property(hl_pm, "max_hp"):
+						hl_max_hp = float(hl_pm.get("max_hp"))
+					if hl_pm.has_method("heal"):
+						hl_pm.heal(hl_max_hp * hl_heal_pct)
+				var hl_sm = get_node_or_null("/root/SummonManager")
+				if hl_sm != null and hl_sm.has_method("heal_summon"):
+					var hl_sm_max: float = 30.0
+					if hl_sm.has_method("get_summon_max_hp"):
+						hl_sm_max = hl_sm.get_summon_max_hp()
+					hl_sm.heal_summon(hl_sm_max * hl_heal_pct)
+		else:
+			_holylight_still_timer = 0.0
+
+	for effect in _active_cast_passives:
+		if effect.get("effect_name", "") != "dispel":
+			continue
+
+		var disp_count: int = roundi(_scaled(effect, "value1", "scale_value1"))
+		if disp_count < 1:
+			disp_count = 1
+
+		var disp_moving := false
+		if _player != null and is_instance_valid(_player):
+			var disp_vel = _player.get("velocity")
+			if disp_vel is Vector2:
+				disp_moving = (disp_vel as Vector2).length() > 10.0
+
+		if disp_moving:
+			if _dispel_pending:
+				_dispel_pending = false
+				_dispel_still_timer = 0.0
+		else:
+			if not _dispel_pending:
+				_dispel_pending = true
+				_dispel_still_timer = 0.0
+			_dispel_still_timer += delta
+			var disp_stand: float = 1.0
+			var disp_stand_raw := str(effect.get("value2", 1.0)).strip_edges()
+			if disp_stand_raw.is_valid_float():
+				disp_stand = float(disp_stand_raw)
+			if _dispel_still_timer >= disp_stand:
+				_dispel_still_timer = 0.0
+				_dispel_pending = false
+				var disp_pm = get_node_or_null("/root/ProgressionManager")
+				if disp_pm != null and disp_pm.has_method("remove_debuffs"):
+					disp_pm.remove_debuffs(disp_count)
+				var disp_sm = get_node_or_null("/root/SummonManager")
+				if disp_sm != null and disp_sm.has_method("clear_debuffs"):
+					disp_sm.clear_debuffs()
+
+	for effect in _active_enemy_passives:
+		if effect.get("effect_name", "") != "rootedpower":
+			continue
+
+		var rp_stand: float = 2.0
+		var rp_stand_raw := str(effect.get("value1", 2.0)).strip_edges()
+		if rp_stand_raw.is_valid_float():
+			rp_stand = float(rp_stand_raw)
+		var rp_amp: float = _scaled(effect, "value2", "scale_value2")
+
+		var rp_still := false
+		if _player != null and is_instance_valid(_player):
+			var rp_vel = _player.get("velocity")
+			if rp_vel is Vector2:
+				rp_still = (rp_vel as Vector2).length() <= 10.0
+
+		if rp_still:
+			_rootedpower_still_timer += delta
+			if _rootedpower_still_timer >= rp_stand:
+				_rootedpower_amp = rp_amp
+		else:
+			_rootedpower_still_timer = 0.0
+			_rootedpower_amp = 0.0
+
 
 func recalculate() -> void:
 	damage_reduction = 0.0
@@ -228,6 +333,13 @@ func recalculate() -> void:
 	_iceshield_still_timer = 0.0
 	_iceshield_duration_timer = 0.0
 	_iceshield_barrier_pct = 0.0
+	_active_cast_passives = []
+	_holylight_still_timer = 0.0
+	_dispel_still_timer = 0.0
+	_dispel_pending = false
+	_active_enemy_passives = []
+	_rootedpower_still_timer = 0.0
+	_rootedpower_amp = 0.0
 
 	_player = get_tree().get_first_node_in_group("player")
 
@@ -266,6 +378,28 @@ func recalculate() -> void:
 				continue
 			_active_passives.append(effect)
 			_apply_stat_passive(effect)
+
+		# Collect cd_type=cast, target=self passives
+		for effect in effects:
+			var cast_target := str(effect.get("target", "")).to_lower()
+			var cast_cd := str(effect.get("cd_type", "")).to_lower()
+			if cast_target == "self" and cast_cd == "cast":
+				if inv_check != null \
+						and not inv_check.school_allocation.is_empty() \
+						and inv_check.get_school_tier(elemental) == 0:
+					continue
+				_active_cast_passives.append(effect)
+
+		# Collect cd_type=passive, target=enemy passives
+		for effect in effects:
+			var ep_target := str(effect.get("target", "")).to_lower()
+			var ep_cd := str(effect.get("cd_type", "")).to_lower()
+			if ep_target == "enemy" and ep_cd == "passive":
+				if inv_check != null \
+						and not inv_check.school_allocation.is_empty() \
+						and inv_check.get_school_tier(elemental) == 0:
+					continue
+				_active_enemy_passives.append(effect)
 
 	damage_reduction = minf(damage_reduction, 0.75)
 	for key in element_resist:
@@ -322,6 +456,10 @@ func get_effective_damage(raw: float, element: String) -> float:
 	var after_dr: float = after_shield * (1.0 - damage_reduction)
 	var resist: float = float(element_resist.get(element.to_lower(), 0.0)) if element != "" else 0.0
 	return after_dr * (1.0 - resist)
+
+
+func get_damage_amp() -> float:
+	return _rootedpower_amp
 
 
 func _scaled(effect: Dictionary, base_key: String, scale_key: String) -> float:
@@ -436,21 +574,23 @@ func _append_passive_rows(
 
 	for position in parts:
 		var element_name: String = str(parts[position])
-		var row = composer.call("_get_row_by_key", "%s_%s_self" % [element_name.to_lower(), position])
-		if not row is Dictionary:
-			continue
-		var row_dict := row as Dictionary
-		if row_dict.is_empty():
-			continue
-		if str(row_dict.get("cd_type", "")).to_lower() != "passive":
-			continue
-		var effect = composer.call("_build_effect_entry", row_dict)
-		if not effect is Dictionary:
-			continue
-		var effect_dict := (effect as Dictionary).duplicate(true)
-		effect_dict["target"] = str(row_dict.get("target", "self"))
-		effect_dict["tier"] = tier
-		effects.append(effect_dict)
+		for target in ["self", "enemy"]:
+			var row = composer.call("_get_row_by_key", "%s_%s_%s" % [element_name.to_lower(), position, target])
+			if not row is Dictionary:
+				continue
+			var row_dict := row as Dictionary
+			if row_dict.is_empty():
+				continue
+			var row_cd_type := str(row_dict.get("cd_type", "")).to_lower()
+			if row_cd_type != "passive" and row_cd_type != "cast":
+				continue
+			var effect = composer.call("_build_effect_entry", row_dict)
+			if not effect is Dictionary:
+				continue
+			var effect_dict := (effect as Dictionary).duplicate(true)
+			effect_dict["target"] = str(row_dict.get("target", target))
+			effect_dict["tier"] = tier
+			effects.append(effect_dict)
 
 
 func is_iceshield_active() -> bool:

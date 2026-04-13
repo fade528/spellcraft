@@ -49,6 +49,30 @@ Notes: Gotchas, things to watch for
 ## Decisions Log
 
 ---
+## current status
+**Session 2.47 complete:** Deferred Passives Part 1 implemented and verified.
+
+**What was delivered in 2.47:**
+- apply_purge shell on shooter.gd and tank.gd (_active_buffs array, no-op until buffs exist)
+- ProgressionManager: register_debuff(), remove_debuffs(), reset_run() clears debuffs
+- SummonManager: heal_summon(), get_summon_max_hp(), clear_debuffs() (no-op hook)
+- PassiveManager: three passive buckets (_active_passives, _active_cast_passives, _active_enemy_passives)
+- holylight (F0005): stand 3.5s → heal player + summon for value2 * max_hp ✅
+- dispel (F0006): stand 1s → remove value1 debuffs from player/summon ✅
+- rootedpower (C0002): stand still → damage amp via get_damage_amp() ✅
+- consecration (F0004): verified working ✅
+- soulsiphon (G0005): heal logic correct but misarchitected — rework in 2.48
+
+**Known outstanding:**
+- Summon requires spell_elements.csv A0007 Status set to "active" to appear
+- Utility delivery type = self-target — not yet implemented
+- Chaser enemy still lives at res://scenes/enemy.tscn — to be rebuilt as Chaser2
+- soulsiphon procs only on projectile hit — needs rearchitecture to PassiveManager leech
+- dispel registration not yet wired (register_debuff not called on debuff application)
+- Milestone bonuses not yet implemented
+- get_school_multiplier() uses 0.05/tier — design doc says 0.02/count, needs alignment
+
+**Next:** Session 2.48 — Deferred Passives Part 2 (killfuel, overheat, bloodpower, dispel wiring, soulsiphon rearchitecture)
 
 ### Player Movement
 **Date:** TBD
@@ -456,3 +480,76 @@ res://scenes/deliveries/ with scripts under res://scripts/deliveries/.
   - soulsiphon and flowstate regen now unblocked (heal() added)
   - Milestone bonuses not implemented in get_school_multiplier()
   - get_school_multiplier uses 0.05/tier vs design doc 0.02/count — needs alignment
+
+  ### Session 2.47 — Deferred Passives Part 1 (Quick Wins)
+
+**apply_purge (Thunder school — future-proof shell)**
+- shooter.gd and tank.gd both receive `var _active_buffs: Array[String] = []`
+  and `apply_purge(count: int)` which pops from the back.
+- No enemy buffs exist yet — purge is a no-op shell for future use.
+- Do NOT track debuffs on enemies — purge only removes buffs.
+
+**Debuff tracking on ProgressionManager**
+- `register_debuff(name: String)` — pushes to `_active_debuffs`
+- `remove_debuffs(count: int) -> Array[String]` — pops most-recent-first
+- `reset_run()` now clears `_active_debuffs`
+
+**SummonManager new API**
+- `heal_summon(amount: float)` — clamps to _max_hp, emits summon_hp_changed
+- `get_summon_max_hp() -> float` — returns _max_hp
+- `clear_debuffs()` — no-op hook, summon debuffing not yet implemented
+
+**PassiveManager — three new passive buckets**
+- `_active_passives` — cd_type=passive, target=self (existing)
+- `_active_cast_passives` — cd_type=cast, target=self (NEW)
+- `_active_enemy_passives` — cd_type=passive, target=enemy (NEW)
+- All three populated in recalculate() inside the slot loop
+- `_append_passive_rows()` updated to loop both "self" and "enemy" targets
+  and allow both "passive" and "cast" cd_types through
+
+**holylight (F0005) — cd_type=cast, target=self**
+- Still-timer pattern (mirrors iceshield)
+- After value1=3.5s still, heals player and summon for value2 * max_hp
+- Resets still-timer on movement, repeats on next stand threshold
+
+**dispel (F0006) — cd_type=cast, target=self**
+- Stop-cast style still-timer: value2=1s stand → remove value1 debuffs
+- Calls ProgressionManager.remove_debuffs(count) and SummonManager.clear_debuffs()
+- disp_count uses _scaled() with roundi() to handle ScaleValue1 fractional scaling
+- Registration wiring (calling register_debuff on hit) deferred to Session 2.48
+
+**rootedpower (C0002) — cd_type=passive, target=enemy**
+- Stand still for value1 seconds → _rootedpower_amp set to value2
+- Resets immediately on movement
+- Exposed via PassiveManager.get_damage_amp() -> float
+- SpellCaster reads get_damage_amp() in both _on_cooldown_timer_timeout()
+  and _try_stop_cast_fire(), multiplies into final_dmg as (1.0 + amp)
+
+**soulsiphon (G0005) — known issue**
+- Heal logic in spell_projectile._apply_on_hit_effects() is correct but
+  only fires when a projectile hits an enemy
+- Utility delivery is a no-op so soulsiphon never procs on that slot
+- Root cause: soulsiphon should proc on ALL damage, not per-projectile
+- Rearchitecture deferred to Session 2.48 Step 5 — move to PassiveManager
+  get_soulsiphon_leech() called from every delivery script after take_damage()
+
+**consecration (F0004) — verified working**
+- Debug print confirmed firing at correct interval
+- Print removed at session close
+
+**Purge vs Dispel distinction (design clarification)**
+- Thunder Purge = removes enemy BUFFS (regen, shields etc) — targets enemy
+- Holy Dispel = removes player/summon DEBUFFS (burn, slow etc) — targets self
+- These are separate systems, separate tracking arrays, separate methods
+
+**ProgressionManager new API (Session 2.47):**
+  register_debuff(name: String) -> void
+  remove_debuffs(count: int) -> Array[String]
+
+**SummonManager new API (Session 2.47):**
+  heal_summon(amount: float) -> void
+  get_summon_max_hp() -> float
+  clear_debuffs() -> void   # no-op hook
+
+**PassiveManager new API (Session 2.47):**
+  get_damage_amp() -> float   # rootedpower amp, 0.0 when moving

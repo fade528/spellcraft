@@ -9,6 +9,7 @@ signal game_over
 
 var lives: int
 var current_hp: float
+var _active_debuffs: Array[String] = []
 
 
 func _ready() -> void:
@@ -26,6 +27,21 @@ func take_damage(amount: float) -> void:
 func heal(amount: float) -> void:
 	current_hp = minf(current_hp + amount, max_hp)
 	hp_changed.emit(current_hp, max_hp)
+
+
+func register_debuff(debuff_name: String) -> void:
+	_active_debuffs.push_back(debuff_name)
+
+
+func remove_debuffs(count: int) -> Array[String]:
+	# Removes up to count debuffs from most recent first.
+	# Returns the list of removed names (for callers to act on).
+	var removed: Array[String] = []
+	for i in range(count):
+		if _active_debuffs.is_empty():
+			break
+		removed.push_back(_active_debuffs.pop_back())
+	return removed
 
 
 func _lose_life() -> void:
@@ -57,3 +73,4 @@ func refill_hp() -> void:
 func reset_run() -> void:
 	lives = starting_lives
 	current_hp = max_hp
+	_active_debuffs.clear()

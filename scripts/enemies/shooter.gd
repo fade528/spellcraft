@@ -28,6 +28,8 @@ var _patrol_dir: float = 1.0
 var _fire_timer: float = 0.0
 var _sprite: ColorRect
 var _burn_timer: Timer = null
+var _active_debuffs: Array[String] = []
+var _active_buffs: Array[String] = []
 var _burn_damage: float = 0.0
 var _burn_ticks_remaining: int = 0
 var _burn_interval: float = 1.0
@@ -309,6 +311,7 @@ func apply_burn(dmg_per_tick: float, interval: float, duration: float) -> void:
 
 	if _burn_timer != null and is_instance_valid(_burn_timer):
 		_burn_timer.wait_time = _burn_interval
+		_active_debuffs.push_back("burn")
 		return
 
 	_burn_timer = Timer.new()
@@ -317,6 +320,7 @@ func apply_burn(dmg_per_tick: float, interval: float, duration: float) -> void:
 	_burn_timer.timeout.connect(_on_burn_tick)
 	add_child(_burn_timer)
 	_burn_timer.start(_burn_interval)
+	_active_debuffs.push_back("burn")
 
 
 func _on_burn_tick() -> void:
@@ -359,6 +363,7 @@ func apply_slow(amount: float, duration: float) -> void:
 		_slow_timer.stop()
 
 	_slow_timer.start(max(duration, 0.0))
+	_active_debuffs.push_back("slow")
 
 
 func apply_stagger(chance: float, duration: float) -> void:
@@ -369,6 +374,7 @@ func apply_stagger(chance: float, duration: float) -> void:
 	velocity = Vector2.ZERO
 	_is_staggered = true
 	_start_stagger_timer(duration, false, crit_multiplier)
+	_active_debuffs.push_back("stagger")
 
 
 func apply_brittle(freeze_duration: float, dmg_mult: float) -> void:
@@ -380,6 +386,7 @@ func apply_brittle(freeze_duration: float, dmg_mult: float) -> void:
 	velocity = Vector2.ZERO
 	_is_staggered = true
 	_start_stagger_timer(freeze_duration, true, original_crit)
+	_active_debuffs.push_back("brittle")
 
 
 func apply_chain(bounce_count: int) -> void:
@@ -436,6 +443,7 @@ func apply_blind(duration: float) -> void:
 		_blind_timer.stop()
 
 	_blind_timer.start(max(duration, 0.0))
+	_active_debuffs.push_back("blind")
 
 
 func execute(chance: float) -> void:
@@ -459,6 +467,7 @@ func apply_wet(duration: float = 5.0) -> void:
 		_wet_timer.stop()
 
 	_wet_timer.start(max(duration, 0.0))
+	_active_debuffs.push_back("wet")
 
 
 func apply_corruption(dmg_per_tick: float, interval: float, duration: float) -> void:
@@ -471,6 +480,7 @@ func apply_corruption(dmg_per_tick: float, interval: float, duration: float) -> 
 		_corruption_interval = max(interval, 0.1)
 		_corruption_ticks_remaining = int(round(duration / _corruption_interval))
 		_corruption_timer.wait_time = _corruption_interval
+		_active_debuffs.push_back("corrupt")
 		return
 
 	_corruption_timer = Timer.new()
@@ -479,6 +489,7 @@ func apply_corruption(dmg_per_tick: float, interval: float, duration: float) -> 
 	_corruption_timer.timeout.connect(_on_corruption_tick)
 	add_child(_corruption_timer)
 	_corruption_timer.start(_corruption_interval)
+	_active_debuffs.push_back("corrupt")
 
 
 func apply_chill(duration: float = 3.0) -> void:
@@ -493,6 +504,15 @@ func apply_chill(duration: float = 3.0) -> void:
 		_chill_timer.stop()
 
 	_chill_timer.start(max(duration, 0.0))
+	_active_debuffs.push_back("chill")
+
+
+func apply_purge(count: int) -> void:
+	for i in range(count):
+		if _active_buffs.is_empty():
+			break
+		_active_buffs.pop_back()
+		# Buff clear logic will go here when buffs are implemented.
 
 
 func get_incoming_multiplier(attacker_element: String) -> float:

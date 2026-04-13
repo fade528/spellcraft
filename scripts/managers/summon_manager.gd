@@ -219,6 +219,22 @@ func take_summon_damage(amount: float) -> void:
 		call_deferred("despawn_summon")
 
 
+func heal_summon(amount: float) -> void:
+	if active_summon == null or not is_instance_valid(active_summon):
+		return
+	_summon_hp = minf(_summon_hp + amount, _max_hp)
+	summon_hp_changed.emit(_summon_hp, _max_hp)
+
+
+func get_summon_max_hp() -> float:
+	return _max_hp
+
+
+func clear_debuffs() -> void:
+	# No-op: summon debuff tracking not yet implemented.
+	pass
+
+
 func is_recharged() -> bool:
 	if active_summon != null and is_instance_valid(active_summon):
 		return true
