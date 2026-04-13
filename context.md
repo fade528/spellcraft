@@ -44,25 +44,32 @@ Renderer:      Mobile
 
 ## Current Status
 
-**Session 2.45 complete:** All 7 delivery types implemented and working.
+**Session 2.48 complete:** Deferred Passives Part 2 — all steps implemented and tested in-engine.
 
-**What was delivered in 2.45:**
-- bolt, burst, missile: projectile deliveries under res://scenes/deliveries/
-- beam: instant vertical line, 40px wide, 1s visual fade
-- blast (aoe): 300px radial burst, expanding circle visual
-- cleave: 600px frontal cone, shotgun-style sector visual
-- orbs: 3 persistent orbiting projectiles at 85px radius, 1 hit/cycle/orb
-- SummonManager.initialize() wired from SpellCaster._ready()
-- Summon position await fix — spawns at player position correctly
-- Volume sliders (BGM/SFX) in CraftingUI, persisted to user://settings.cfg
-- Beam hitbox widened to 40px
+**What was delivered in 2.48:**
+- killfuel (A0005): enemy kill cuts current spell CD cycle only. Per-physics-frame deduped. One-shot timer architecture applied to prevent wait_time corruption.
+- overheat (A0006): N-cast threshold fires a delayed boosted shot (+0.3s). Buff badge shows while proc pending, clears on shot fire.
+- bloodpower (G0004): HP-pct damage amp via PassiveManager.get_bloodpower_amp(). Reads from _active_cast_passives.
+- soulsiphon (G0005): rearchitected from projectile-only to all 7 delivery types via PassiveManager.get_soulsiphon_leech().
+- dispel registration (F0006): register_debuff() calls wired in spell_projectile on-hit effects. Currently inert — enemies do not yet apply named debuffs to the player.
+- Burn stacking: apply_burn() now additive (_burn_damage += dmg_per_tick), duration resets on reapply.
+- CD timer architecture: cooldown_timer changed to one_shot=true with explicit restart in _on_cooldown_timer_timeout(). Prevents wait_time corruption from killfuel instant reductions.
+- Dynamic stagger spacing: _refresh_all_casters() now distributes stagger evenly across only actively firing casters (excludes empty, utility, stop-cast slots).
+- Control strip: 4-slot CD row replaces single SpellCDLabel. Colour bars fill red→yellow→green per slot.
+- Enemy debuff flash colours: _flash_debuff_colour() on shooter and tank. Orange=burn, purple=corrupt, dark blue=wet, light blue=chill/slow, white=blind.
+- Player green flash on any heal via ProgressionManager.heal() → player.flash_heal().
+- Buff badges enlarged. Debuff badges pulse via looping tween on modulate.a.
 
 **Known outstanding:**
 - Summon requires spell_elements.csv A0007 Status set to "active" to appear
 - Utility delivery type = self-target (same as target=self spells) — not yet implemented
 - Chaser enemy still lives at res://scenes/enemy.tscn — to be rebuilt as Chaser2
+- dispel registration inert until enemies apply named debuffs to the player
+- Milestone bonuses not yet implemented
+- get_school_multiplier() uses 0.05/tier — design doc says 0.02/count, needs alignment
+- soulsiphon legacy arm still present in _apply_on_hit_effects() in all delivery scripts — remove in next session (double-heal risk if soulsiphon is in on_hit_effects)
 
-**Next:** Session 2.46 — Partner playtesting of all delivery types, tuning pass
+**Next:** Session 2.49 — TBD (enemy variety / wave structure, OR spec system, OR equipment slots)
 
 ---
 
@@ -92,6 +99,7 @@ SpellComposer        res://scripts/managers/spell_composer.gd
 SummonManager        res://scripts/managers/summon_manager.gd
 TomeManager          res://scripts/managers/tome_manager.gd
 SpecManager          res://scripts/spec_manager.gd
+PassiveManager       res://scripts/managers/passive_manager.gd
 ```
 
 ### Scene Structure (actual as built)
@@ -102,8 +110,11 @@ Game (scene) — res://scenes/game.tscn
 │   ├── BackgroundA (ColorRect)
 │   └── BackgroundB (ColorRect)
 ├── Player (scene) — res://scenes/player.tscn
-│   └── SpellCaster (Node2D)
-│       └── CooldownTimer (Timer)
+│   ├── SpellCaster (Node2D)        ← slot 1, child of player in .tscn
+│   │   └── CooldownTimer (Timer)   ← one_shot=true as of session 2.48
+│   ├── SpellCaster2 (Node2D)       ← created at runtime in player._ready()
+│   ├── SpellCaster3 (Node2D)
+│   └── SpellCaster4 (Node2D)
 ├── Camera2D
 ├── Projectiles (Node2D) — projectile container, group: "projectile_container"
 ├── SpellHitSFX (AudioStreamPlayer)
@@ -117,14 +128,18 @@ Game (scene) — res://scenes/game.tscn
 ├── CraftingUI (CanvasLayer)
 └── ControlStrip (CanvasLayer)
     ├── StripPanel (ColorRect) — bottom 20% (y=1536, h=384)
-    │   ├── ActivePageLabel
-    │   ├── SpellCDLabel
-    │   └── SummonLabel
+    │   ├── ActivePageLabel         ← "▶ Fire all" etc
+    │   ├── SpellCDLabel            ← hidden — replaced by 4-slot CD row
+    │   ├── SummonLabel
+    │   ├── BuffRow (HBoxContainer) ← passive badges, debuffs pulse
+    │   ├── [4x slot CD labels]     ← S1/S2/S3/S4 with colour bars
+    │   ├── [school swatches x7]
+    │   └── ManaPoolLabel
     ├── ActionButtonLayer (Control) — y=1400, 4 placeholder buttons
     └── BossBarContainer (Control) — y=0, hidden until Session 3.x
 
 Enemy scenes:
-res://scenes/enemy.tscn       — Chaser
+res://scenes/enemy.tscn       — Chaser (to be retired)
 res://scenes/enemies/shooter.tscn
 res://scenes/enemies/tank.tscn
 
@@ -171,7 +186,9 @@ Right 90-100% → page flip gesture trigger only
 │  [btn][btn][btn][btn]   │  ← 4 reserved action buttons (canvas layer)
 ├─────────────────────────┤  ← y=1536 (80%)
 │  HP bar  ❤❤❤            │  ← in control strip
-│  page / CD / summon     │
+│  [buff badges — pulsing debuffs]
+│  S1 X.Xs  S2 RDY  S3 X.Xs  S4 RDY   ← 4-slot CD row with colour bars
+│  Summon: Ready / Xsec   │
 │  school swatches T0-Tn  │  ← mana display row
 │  Mana: X | Free: X      │
 │  [   touchpad   ]       │
@@ -185,7 +202,7 @@ ControlStrip exposes: `update_hp(current, maximum)` and `update_lives(count)`.
 - Signals travel **upward** (child → parent/manager)
 - Direct calls travel **downward** (manager → child)
 - GameManager is coordinator only — thin orchestrator, does not implement domain logic
-- Domain managers own their logic: SpellComposer, PlayerInventory, SummonManager, TomeManager, ProgressionManager, SpecManager
+- Domain managers own their logic: SpellComposer, PlayerInventory, SummonManager, TomeManager, ProgressionManager, SpecManager, PassiveManager
 
 ### Collision Layers
 
@@ -204,116 +221,101 @@ Layer 7 — Screen boundaries
 ### Data Pattern
 - **CSV files** = master spell data. `res://data/spell_elements.csv` — edited in Google Sheets only, never by Codex.
 - **Resources (.tres)** = other master data (spec definitions, enemy stats, level configs). Stored in `res://data/specs/`.
-- **Node variables** = runtime state (current HP, cooldown timers).
+- **Node variables** = runtime state (current HP, cooldowns).
 - **JSON files** = player save data. user://specs.json (custom specs), user://pages_{spec}.json (per-spec tome pages).
 - Always `duplicate()` resources before modifying per-instance values.
 
-### Game States
+### CD Timer Architecture (Session 2.48 — critical)
+SpellCaster.cooldown_timer is `one_shot = true`. After firing, `_on_cooldown_timer_timeout()` explicitly restarts it at `full_cd = maxf(spell_data.cooldown - _cd_reduction, 1.5)`. This prevents wait_time corruption from killfuel instant reductions. Never set `one_shot = false` on cooldown_timer.
 
 ```gdscript
-enum GameState {
-    SCROLLING,
-    BOSS_PREP,
-    BOSS_FIGHT,
-    BOSS_METRICS,
-    GAME_OVER
-}
+# In _on_cooldown_timer_timeout(), at the very end after _spawn_delivery():
+var full_cd: float = maxf(spell_data.cooldown - _cd_reduction, 1.5) if spell_data != null else 1.5
+cooldown_timer.wait_time = full_cd
+cooldown_timer.start()
 ```
 
----
+### PassiveManager Buckets (Session 2.47)
+Three separate arrays populated in recalculate():
+- `_active_passives` — cd_type=passive, target=self
+- `_active_cast_passives` — cd_type=cast, target=self (soulsiphon, bloodpower, holylight, dispel, overheat)
+- `_active_enemy_passives` — cd_type=passive, target=enemy (rootedpower)
 
-## Key Systems Summary
-
-
-
-### Life System (Session 1.4 — complete)
+### PassiveManager API (cumulative)
 
 ```gdscript
-get_node_or_null("/root/ProgressionManager").take_damage(amount)
-get_node_or_null("/root/ProgressionManager").heal(amount)
-get_node_or_null("/root/ProgressionManager").reset_run()
+# Session 2.47
+get_damage_amp() -> float           # rootedpower amp, 0.0 when moving
+get_effective_damage(raw, element)  # applies damage_reduction + iceshield + element resist
+is_iceshield_active() -> bool
+on_enemy_killed() -> void           # killfuel proc — deduped per physics frame
+
+# Session 2.48
+get_overheat_effect() -> Dictionary # returns effect dict from _active_passives
+get_bloodpower_amp() -> float       # reads HP% from ProgressionManager
+get_soulsiphon_leech() -> float     # reads from _active_cast_passives
 ```
 
-### Spell System (Session 2.1 — complete)
+### SpellCaster API (cumulative)
 
-Delivery scenes:
-res://scenes/deliveries/bolt.tscn      — Area2D, layer 5, mask 4
-res://scenes/deliveries/burst.tscn     — Area2D, layer 5, mask 4
-res://scenes/deliveries/missile.tscn   — Area2D, layer 5, mask 4
-res://scenes/deliveries/beam.tscn      — Area2D, layer 5, no mask (manual scan)
-res://scenes/deliveries/aoe.tscn       — Node2D (no collision, manual scan)
-res://scenes/deliveries/cleave.tscn    — Node2D (no collision, manual scan)
-res://scenes/deliveries/orbs.tscn      — Area2D, layer 5, mask 4, monitorable=false
-
-### Mana and School System (Sessions 2.41 / 2.42 — complete)
-
-All enemy drops are generic mana orbs (light blue ColorRect). No element-coloured drops.
-
-**PlayerInventory mana API:**
 ```gdscript
-PlayerInventory.add_mana(amount: int) -> void           # banks to unallocated_mana via SpecManager
-PlayerInventory.allocate_to_school(school, amount) -> void
-PlayerInventory.deallocate_from_school(school, amount) -> void
-PlayerInventory.get_school_tier(school: String) -> int
-PlayerInventory.get_school_multiplier(school: String) -> float
-# Fields: mana_pool: int, school_allocation: Dictionary, unallocated_mana: int
+refresh_spell(elemental, empowerment, enchantment, delivery, target) -> void
+apply_cd_reduction(reduction: float) -> void   # permanent, baked into wait_time
+apply_cd_reduction_instant(seconds: float) -> void  # cuts time_left this cycle only
+set_stagger_delay(delay: float) -> void
+set_moving(moving: bool) -> void
+# _overheat_ready: bool — readable by ControlStrip for badge display
 ```
 
-**School gating:** SpellCaster checks `not school_allocation.is_empty() and get_school_tier(elemental_element) == 0`. Gate only activates once player has made at least one allocation. Timer only restarts if stopped (prevents rapid-fire on page flip).
+### Player API (cumulative)
 
-**SpecManager API:**
 ```gdscript
-SpecManager.apply_spec(spec_name: String) -> void        # activates spec + loads its tome
-SpecManager.clear_spec() -> void                          # Archmage mode
-SpecManager.get_active_spec() -> SpecData
-SpecManager.get_active_spec_name() -> String
-SpecManager.is_archmage() -> bool
-SpecManager.allocate_mana_for_pickup(amount: int) -> void # banks all to unallocated_mana
-SpecManager.allocate_remaining_by_spec() -> void
-SpecManager.allocate_all_by_spec() -> void
-SpecManager.get_all_spec_names() -> Array[String]
-SpecManager.save_spec_from_dict(name, data) -> void
-SpecManager.delete_custom_spec(name) -> void
-SpecManager.save_archmage_as_spec(new_name) -> void
+take_damage(amount, element) -> void
+apply_speed_bonus(bonus) -> void
+flash_heal() -> void    # green modulate flash, called by ProgressionManager.heal()
+respawn() -> void
 ```
 
-**Mana allocation:** All pickups bank to unallocated_mana. Player allocates manually via UI. Three actions: Reset Allocation, Alloc Remaining %, Alloc All %.
+### ProgressionManager API (cumulative)
 
-**SpecData resource:**
 ```gdscript
-class_name SpecData extends Resource
-@export var spec_name: String
-@export var description: String
-@export var allocation_ratios: Dictionary    # {"fire": 0.6, "thunder": 0.4}
-@export var preferred_slots: Array[Dictionary]  # [{elemental, empowerment, enchantment, delivery}]
-@export var preferred_ults: Array[String]
+take_damage(amount) -> void
+heal(amount) -> void              # clamps to max_hp, emits hp_changed, calls player.flash_heal()
+register_debuff(name) -> void
+remove_debuffs(count) -> Array[String]
+reset_run() -> void
+get_current_hp() -> float         # or property current_hp
+get_max_hp() -> float             # or property max_hp
+is_dead() -> bool                 # check before applying on-death effects
 ```
 
-Spec files: `res://data/specs/pyroclast.tres`, `frostbinder.tres`, `archmage.tres`
+### Enemy API (shooter + tank, cumulative)
 
-### Tome and Page System (Sessions 2.2 / 2.42 — complete)
-
-Each spec owns its own Tome (up to 8 pages). Switching specs saves current pages and loads the new spec's pages. Save files: `user://pages_{spec_name}.json`.
-
-**PageData:**
 ```gdscript
-class_name PageData extends Resource
-@export var page_name: String
-@export var slots: Array[Dictionary]   # {elemental, empowerment, enchantment, delivery, target}
-@export var summon_element: String
-@export var ult1: String
-@export var ult2: String
-@export var is_overridden: bool = false  # true = manually edited, false = spec-driven
-func ensure_slots(count: int = 4) -> void
-static func make_default_slot() -> Dictionary
+take_damage(amount, element) -> void
+apply_burn(dmg_per_tick, interval, duration) -> void   # stacks additively since 2.48
+apply_slow(amount, duration) -> void
+apply_stagger(chance, duration) -> void
+apply_brittle(freeze_duration, dmg_mult) -> void
+apply_chain(bounce_count) -> void
+apply_pushback(distance) -> void
+apply_blind(duration) -> void
+apply_wet(duration) -> void
+apply_corruption(dmg_per_tick, interval, duration) -> void
+apply_chill(duration) -> void
+apply_purge(count) -> void
+execute(chance) -> void
+get_element() -> String
+get_incoming_multiplier(attacker_element) -> float
+_flash_debuff_colour(colour: Color) -> void   # added 2.48
 ```
 
-**TomeManager API:**
+### TomeManager API
 ```gdscript
 TomeManager.load_for_spec(spec_name: String, preferred_slots: Array = []) -> void
 TomeManager.reset_to_default(preferred_slots: Array = []) -> void
 TomeManager.flip_to_page(index: int) -> void
-TomeManager.can_flip_page(target_index: int = -1) -> bool  # only checks spell cooldown now
+TomeManager.can_flip_page(target_index: int = -1) -> bool
 TomeManager.save_page(index: int, page: PageData) -> void
 TomeManager.get_page(index: int) -> PageData
 TomeManager.get_active_page() -> PageData
@@ -323,19 +325,10 @@ TomeManager.rename_page(index: int, new_name: String) -> void
 TomeManager.reset_override_flags() -> void
 ```
 
-**Page flip gate:** Only spell cooldown (_flip_cooldown). Summon recharge no longer blocks flips — summon respawn is skipped during recharge but flip is allowed.
+**Page flip gate:** Only spell cooldown (_flip_cooldown). Summon recharge no longer blocks flips.
+**Page override indicator:** `~ ` prefix = spec-driven, `* ` prefix = manually edited.
 
-**Page override indicator:** `~ ` prefix = spec-driven (is_overridden=false), `* ` prefix = manually edited (is_overridden=true).
-
-**CraftingUI:**
-```gdscript
-CraftingUI.open_ui() -> void
-CraftingUI.close_ui() -> void
-
-```
-
-### Summon System (Session 2.3 — complete)
-
+### Summon System
 ```gdscript
 SummonManager.spawn_summon(element: String) -> void
 SummonManager.despawn_summon() -> void
@@ -343,68 +336,23 @@ SummonManager.set_attack_spell(spell: SpellData) -> void
 SummonManager.get_summon_stat(key: String) -> Variant
 SummonManager.is_recharged() -> bool
 SummonManager.get_recharge_remaining() -> float
+SummonManager.heal_summon(amount: float) -> void
+SummonManager.get_summon_max_hp() -> float
+SummonManager.clear_debuffs() -> void   # no-op hook
 ```
 
-Summon hurtbox on Layer 6. Shooter projectiles now correctly hit summon (mask 6). Damage routed to SummonManager.take_summon_damage().
-
-### Enemy System (Session 2.3 — complete)
-
-Three enemy types, all with full status effect suite. All spawn_drop() calls use `call_deferred("add_child", drop)`.
-
-**Status effects:** apply_burn, apply_slow, apply_stagger, apply_brittle, apply_chain, apply_pushback, apply_blind, execute, apply_wet, apply_corruption, apply_chill, get_element, get_incoming_multiplier
-
-**Shooter projectile fix (Session 2.42):** Shooter enemy projectiles use `set_collision_mask_value(3, true)` and `set_collision_mask_value(6, true)` — never raw integer mask assignment.
-
-### Control Strip (Sessions 2.2–2.41 — complete)
-
+### Control Strip API
 ```gdscript
 ControlStrip.update_hp(current: float, maximum: float) -> void
 ControlStrip.update_lives(count: int) -> void
 ControlStrip.update_mana_display() -> void   # called every frame from _process
 ```
 
-### CraftingUI (Session 2.42 — complete)
-
-Single Spec tab. All UI built in code, no .tscn changes. Spec list → Spec editor → Tome view → Page editor flow.
-
-**Spec slots:** Archmage (always top) | Built-in 1-5 (Activate/Edit/Reset Spec) | Custom 6-10 (Activate/Edit/Delete) | Resume
-**Spec editor:** Back | Go to Tome | Reset Spec (built-ins only) | Name (read-only for built-ins) | Slot pickers | Summon/Ult pickers | Ratio % inputs | Mana Allocation (+/- per school, Reset Allocation, Alloc Remaining %, Alloc All %)
-**Tome view:** Per-spec page list with override indicators, summary row, Craft/Activate/Rename/Delete, mana chart with +/- at bottom.
-
-**Next session (2.43):** Embed tome inline in spec editor. Remove separate Tome view. Prev/next page navigator inside spec editor.
-
-### CraftingUI (Session 2.43 — complete)
-
-Single unified screen. No separate Tome view.
-
-**Flow:** Spec list → Spec editor (Name + PAGES inline + Mana & Ratios) 
-→ Back to spec list
-
-**Page section:** Prev/Next navigator, page name LineEdit (saves on 
-focus_exited), Slot 1 live pickers (save on change), Summon live picker, 
-Ult 1/2 live pickers, Save Page button, Activate button.
-
-**Mana & Ratios:** School name labels (always shown), ratio % inputs 
-(named specs only), T0/+/- allocation controls, Reset/Alloc Remaining 
-%/Alloc All %, Mana summary. Archmage shows hint label instead of % buttons.
-
-SPELL EFFECTS (Session 2.46b):
-  All 7 delivery scripts confirmed to copy on_hit_effects in setup_from_spell()
-  Confirmed working on-hit: burndot, explosion, chilled, brittle, stagger,
-    chain 1, tidal, splash, corruption, execute, radiance (blind)
-  Confirmed working passives: stoneskin, chillaura, iceshield, flashcast,
-    surge, consecration, bubbleaura
-  Stop-cast mechanic confirmed: holy and dark fire on move→still transition
-
-DELIVERY SYSTEM — add note:
-  All delivery scripts require:
-    var on_hit_effects: Array[Dictionary] = []
-    on_hit_effects = spell.on_hit_effects.duplicate(true) in setup_from_spell()
-
-PROGRESSION MANAGER — add:
-  heal(amount: float) added — clamps to max_hp, emits hp_changed signal
-
-
+### CraftingUI
+```gdscript
+CraftingUI.open_ui() -> void
+CraftingUI.close_ui() -> void
+```
 
 ### Item System (Phase 4 — stub only)
 5 equipment slots: Hat, Robe, Gloves, Boots, Weapon. Slots stubbed in PlayerInventory. Drop from bosses only.
@@ -446,6 +394,14 @@ res://
 │   ├── enemies/
 │   │   ├── shooter.tscn
 │   │   └── tank.tscn
+│   ├── deliveries/
+│   │   ├── bolt.tscn
+│   │   ├── burst.tscn
+│   │   ├── missile.tscn
+│   │   ├── beam.tscn
+│   │   ├── aoe.tscn
+│   │   ├── cleave.tscn
+│   │   └── orbs.tscn
 │   ├── element_drop.tscn
 │   ├── ui/
 │   │   ├── crafting_ui.tscn
@@ -456,11 +412,13 @@ res://
 │   ├── element_drop.gd
 │   ├── spec_data.gd
 │   ├── spec_manager.gd
+│   ├── progression_manager.gd
 │   ├── managers/
 │   │   ├── spell_composer.gd
 │   │   ├── player_inventory.gd
 │   │   ├── summon_manager.gd
-│   │   └── tome_manager.gd
+│   │   ├── tome_manager.gd
+│   │   └── passive_manager.gd
 │   ├── ui/
 │   │   ├── crafting_ui.gd
 │   │   ├── page_flip_widget.gd
@@ -472,17 +430,17 @@ res://
 │   └── spells/
 │       ├── spell_data.gd
 │       ├── spell_caster.gd
-│       └── spell_projectile.gd
+│       ├── spell_projectile.gd
+│       └── deliveries/
+│           ├── bolt.gd
+│           ├── burst.gd
+│           ├── missile.gd
+│           ├── beam.gd
+│           ├── aoe.gd
+│           ├── cleave.gd
+│           └── orbs.gd
 ├── resources/
 └── assets/
-│   └── deliveries/
-│       ├── bolt.gd
-│       ├── burst.gd
-│       ├── missile.gd
-│       ├── beam.gd
-│       ├── aoe.gd
-│       ├── cleave.gd
-│       └── orbs.gd
 ```
 
 ---
@@ -500,6 +458,7 @@ res://
 10. Use `call_deferred("add_child", node)` not `add_child(node)` inside physics callbacks
 11. Never use raw integer collision_mask assignment — always use set_collision_mask_value() for clarity
 12. GDScript lambda closures in for loops capture loop variables by reference — use .bind(value) instead
+13. cooldown_timer is one_shot=true — never set one_shot=false, always restart manually in timeout handler
 
 ---
 
@@ -512,7 +471,8 @@ res://
 
 ## KNOWN ISSUES
 - Chaser (enemy.gd) has no debuff surface — retire in favour of Chaser2
-- bolt, cleave, aoe, missile, orbs on_hit_effects fix needs verification
+- soulsiphon legacy arm still in _apply_on_hit_effects() in all 7 delivery scripts — double-heal risk, remove next session
+- dispel registration wired but inert — enemies don't apply named debuffs to player yet
 - rootedpower and stagger routing incorrectly into on_hit_effects
 - SpellComposer register_passive() is dead path for PassiveManager
 - Milestone bonuses not yet implemented

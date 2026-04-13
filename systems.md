@@ -49,30 +49,33 @@ Notes: Gotchas, things to watch for
 ## Decisions Log
 
 ---
-## current status
-**Session 2.47 complete:** Deferred Passives Part 1 implemented and verified.
 
-**What was delivered in 2.47:**
-- apply_purge shell on shooter.gd and tank.gd (_active_buffs array, no-op until buffs exist)
-- ProgressionManager: register_debuff(), remove_debuffs(), reset_run() clears debuffs
-- SummonManager: heal_summon(), get_summon_max_hp(), clear_debuffs() (no-op hook)
-- PassiveManager: three passive buckets (_active_passives, _active_cast_passives, _active_enemy_passives)
-- holylight (F0005): stand 3.5s → heal player + summon for value2 * max_hp ✅
-- dispel (F0006): stand 1s → remove value1 debuffs from player/summon ✅
-- rootedpower (C0002): stand still → damage amp via get_damage_amp() ✅
-- consecration (F0004): verified working ✅
-- soulsiphon (G0005): heal logic correct but misarchitected — rework in 2.48
+## current status
+**Session 2.48 complete:** Deferred Passives Part 2 implemented and verified.
+
+**What was delivered in 2.48:**
+- killfuel (A0005): per-physics-frame deduped CD cut on kill. One-shot timer fix applied.
+- overheat (A0006): N-cast threshold fires delayed boosted shot. Badge shows while pending.
+- bloodpower (G0004): HP-pct damage amp via PassiveManager.get_bloodpower_amp()
+- soulsiphon (G0005): rearchitected to all 7 delivery types via PassiveManager leech
+- dispel registration (F0006): wired but inert until enemies apply debuffs to player
+- Burn stacking: additive _burn_damage, duration reset on reapply
+- CD timer: one_shot=true architecture, wait_time corruption eliminated
+- Dynamic stagger: active-casters-only even distribution in player._refresh_all_casters()
+- Control strip: 4-slot CD row with colour bars
+- Enemy debuff flash colours on hit
+- Player green flash on any heal source
 
 **Known outstanding:**
-- Summon requires spell_elements.csv A0007 Status set to "active" to appear
-- Utility delivery type = self-target — not yet implemented
-- Chaser enemy still lives at res://scenes/enemy.tscn — to be rebuilt as Chaser2
-- soulsiphon procs only on projectile hit — needs rearchitecture to PassiveManager leech
-- dispel registration not yet wired (register_debuff not called on debuff application)
-- Milestone bonuses not yet implemented
-- get_school_multiplier() uses 0.05/tier — design doc says 0.02/count, needs alignment
+- Summon requires spell_elements.csv A0007 Status="active" to appear
+- Utility delivery = self-target, not yet implemented
+- Chaser to be rebuilt as Chaser2
+- soulsiphon legacy arm still in all delivery _apply_on_hit_effects() — remove next session
+- dispel registration inert until enemy-on-player debuffs exist
+- Milestone bonuses not implemented
+- get_school_multiplier() 0.05/tier vs design 0.02/count — needs alignment
 
-**Next:** Session 2.48 — Deferred Passives Part 2 (killfuel, overheat, bloodpower, dispel wiring, soulsiphon rearchitecture)
+**Next:** Session 2.49 — TBD
 
 ### Player Movement
 **Date:** TBD
@@ -197,20 +200,20 @@ class_name SpecData extends Resource
 **Date:** 2026-04-10
 **Decision:** SpecManager owns active spec state, mana allocation routing, custom spec persistence, and per-spec tome loading.
 ```gdscript
-SpecManager.apply_spec(spec_name: String) -> void        # loads spec, calls tm.load_for_spec()
-SpecManager.clear_spec() -> void                          # Archmage mode, calls tm.load_for_spec("archmage")
+SpecManager.apply_spec(spec_name: String) -> void
+SpecManager.clear_spec() -> void
 SpecManager.get_active_spec() -> SpecData
 SpecManager.get_active_spec_name() -> String
 SpecManager.is_archmage() -> bool
-SpecManager.allocate_mana_for_pickup(amount: int) -> void # banks all to unallocated_mana
-SpecManager.allocate_remaining_by_spec() -> void          # distributes unallocated per ratio
-SpecManager.allocate_all_by_spec() -> void                # resets allocation then redistributes all
-SpecManager.get_all_spec_names() -> Array[String]         # built-ins (excl Archmage) + custom
-SpecManager.save_spec_from_dict(name, data) -> void       # saves to user://specs.json
+SpecManager.allocate_mana_for_pickup(amount: int) -> void
+SpecManager.allocate_remaining_by_spec() -> void
+SpecManager.allocate_all_by_spec() -> void
+SpecManager.get_all_spec_names() -> Array[String]
+SpecManager.save_spec_from_dict(name, data) -> void
 SpecManager.delete_custom_spec(name) -> void
-SpecManager.save_archmage_as_spec(new_name) -> void       # copies archmage pages + allocation to new custom spec
+SpecManager.save_archmage_as_spec(new_name) -> void
 ```
-**Notes:** SPEC_PATHS const maps built-in names to .tres paths. Custom specs stored in _custom_specs dict, persisted to user://specs.json. allocate_mana_for_pickup now just banks to unallocated — no per-pickup routing.
+**Notes:** SPEC_PATHS const maps built-in names to .tres paths. Custom specs stored in _custom_specs dict, persisted to user://specs.json.
 
 ---
 
@@ -218,7 +221,7 @@ SpecManager.save_archmage_as_spec(new_name) -> void       # copies archmage page
 **Date:** 2026-04-10
 **Decision:** Each spec owns its own set of pages (up to 8). Switching specs saves current pages and loads the new spec's pages. Archmage has its own pages too.
 
-**Save files:** `user://pages_{spec_name_lowercase}.json` — e.g. pages_pyroclast.json, pages_archmage.json.
+**Save files:** `user://pages_{spec_name_lowercase}.json`
 
 **TomeManager API additions:**
 ```gdscript
@@ -226,332 +229,200 @@ TomeManager.load_for_spec(spec_name: String, preferred_slots: Array = []) -> voi
 TomeManager.reset_to_default(preferred_slots: Array = []) -> void
 TomeManager._save_path_for(spec_name: String) -> String
 TomeManager._generate_default_pages(preferred_slots: Array) -> void
-# _current_spec_name: String tracks active spec
 ```
-**Notes:** On first open of a spec with no save file, default pages are generated from preferred_slots. If preferred_slots is empty (Archmage, custom specs), one blank page is created. Old user://tome_pages.json is obsolete — delete it.
+**Notes:** On first open of a spec with no save file, default pages generated from preferred_slots. Old user://tome_pages.json is obsolete.
 
 ---
 
 ### Page Flip Gate Change (Session 2.42)
 **Date:** 2026-04-10
-**Decision:** Removed summon recharge check from can_flip_page(). Page flips are now only gated by spell cooldown (_flip_cooldown). Summon spawn inside flip_to_page() is still guarded by is_recharged() — flip is allowed during recharge, but summon does not respawn until recharged naturally.
-**Reason:** Blocking flips during recharge (up to 60s) was too punishing and prevented gameplay. Summon respawn is handled by SummonManager._process() automatically.
+**Decision:** Removed summon recharge check from can_flip_page(). Page flips gated by spell cooldown only. Summon spawn inside flip_to_page() still guarded by is_recharged().
 **Notes:** can_flip_page() now only checks _flip_cooldown > 0.
 
 ---
 
-### CraftingUI Architecture (Session 2.42)
+### CraftingUI Architecture (Session 2.42 / 2.43)
 **Date:** 2026-04-10
-**Decision:** Full redesign. Single Spec tab (no separate Tome tab). All UI built in code — no .tscn changes.
+**Decision:** Full redesign. Single Spec tab. All UI built in code — no .tscn changes. Session 2.43 removed separate Tome view — embedded inline.
 
-**Layout:**
-- Spec list screen: Archmage (Activate + Edit + Save as Spec) | Built-in specs 1-5 (Activate + Edit) | Custom specs 6-10 (Activate + Edit + Delete) | Resume
-- Spec editor screen: Back | Go to Tome | Reset Spec (built-ins only) | Name field (read-only for built-ins) | 4 slot rows | Summon/Ult pickers | Ratio inputs (integer % fields, normalise on save) | Mana Allocation (+/- per school, Reset Allocation, Alloc Remaining %, Alloc All %) | Save / Cancel
-- Tome view: opened by "Go to Tome" in spec editor. Shows pages for active spec. Page rows with override indicator (~=spec-driven, *=manually edited), summary (elemental | S:summon U:ult1/ult2), Craft / Activate / Rename / Delete. Mana chart with +/- at bottom.
+**Flow:** Spec list → Spec editor (Name + PAGES inline + Mana & Ratios) → Back
 
 **Key patterns:**
-- `_spec_tab_container` holds spec list content (built dynamically)
-- `_spec_editor_container` holds spec editor content (built dynamically)
-- `tome_view` / `page_editor_view` from .tscn reparented into wrapper VBox
-- Tab bar has single Spec button only
 - `enum TabView { SPEC_LIST, SPEC_EDITOR, TOME_LIST, PAGE_EDITOR }`
-
-**Spec slots:** 10 total. Slots 1-5 = built-in .tres specs (Open, Edit, Reset Spec). Slots 6-10 = custom Archmage-crafted specs (Open, Edit, Delete). Archmage always present at top.
-
-**JSON persistence:** Custom specs → user://specs.json. Page data → user://pages_{spec}.json per spec.
-
-**PageData.is_overridden:** bool flag. Set true when player manually saves a page via Craft editor. Reset to false when Set Active is pressed. Shown as ~ (spec-driven) or * (overridden) prefix in tome page list.
+- `_spec_editor_page_index` tracks page in navigator
+- `_repopulate_page_section()` rebuilds only page section on prev/next
+- Save spec builds preferred_slots from page 0 of TomeManager
 
 ---
 
 ### Mana Allocation Philosophy (Session 2.42)
 **Date:** 2026-04-10
-**Decision:** All mana orb pickups bank to unallocated_mana. No per-pickup routing. Player manually allocates via UI buttons or +/- controls. Three allocation actions: Reset Allocation (zero everything), Alloc Remaining % (distribute unallocated per spec ratio), Alloc All % (reset then redistribute entire pool per spec ratio).
-**Reason:** Per-pickup routing with floor() caused incorrect distribution at small amounts. Banking + explicit allocation is clearer for the player and avoids rounding bugs.
-**Notes:** Archmage players use +/- directly. Named spec players use the % buttons for quick setup then fine-tune with +/-.
+**Decision:** All mana orb pickups bank to unallocated_mana. Player manually allocates via +/- or % buttons. Three actions: Reset Allocation, Alloc Remaining %, Alloc All %.
 
 ---
 
 ### Shooter Projectile Collision Fix (Session 2.42)
 **Date:** 2026-04-10
-**Decision:** Shooter enemy projectiles now correctly hit player hurtbox (Layer 3) and summon hurtbox (Layer 6).
 ```gdscript
-# In shooter._try_fire():
-proj.collision_layer = 0
-proj.collision_mask = 0
 proj.set_collision_layer_value(5, true)
 proj.set_collision_mask_value(3, true)
 proj.set_collision_mask_value(6, true)
-
-# In spell_projectile._on_area_entered():
-if area.get_collision_layer_value(6):
-    var sum = get_node_or_null("/root/SummonManager")
-    if sum != null:
-        sum.take_summon_damage(damage)
-    queue_free()
-    return
 ```
-**Notes:** Summon hurtbox is on Layer 6. Shooter projectiles previously used raw integer mask `3` which only set bits 1 and 2, not bit 3 (player hurtbox). Always use set_collision_mask_value() for clarity.
+**Notes:** Always use set_collision_mask_value() — never raw integer mask.
 
 ---
-
-### Next Session — 2.43 Spec Editor Tome Integration
-**Date:** 2026-04-10
-**Planned:** Embed tome page navigator directly inside spec editor. Remove separate Tome view. Spec editor becomes single unified screen: spec metadata + inline page navigator (prev/next) + page spell rows + mana allocation. Craft button pushes to page_editor_view, Back returns to spec editor.
-
-### CraftingUI Unified Spec Editor (Session 2.43)
-**Date:** 2026-04-11
-**Decision:** Removed separate Tome view. Embedded page navigator inline inside 
-spec editor. Single unified screen.
-**Implementation:** 
-- Layout: Name → PAGES (prev/next navigator) → Mana & Ratios → Save/Cancel
-- Slot 1 auto-saves on picker change and live-refreshes active SpellCaster
-- Summon and Ult 1/2 are live pickers, save on change
-- Ratio inputs hidden for Archmage, shown for named specs
-- % allocation buttons disabled for Archmage with explanatory label
-- % allocation reads ratio inputs directly via _ratio_input_fields dict reference
-- _spec_editor_page_index tracks current page in navigator
-- _repopulate_page_section() rebuilds only the page section on prev/next
-**Notes:** _spec_slot_pickers and _spec_summon_picker removed — spec template 
-slots removed entirely. Save spec builds preferred_slots from page 0 of TomeManager.
 
 ### Menu Button (Session 2.43)
 **Date:** 2026-04-11
 **Decision:** Leftmost action button wired as Menu toggle (open/close CraftingUI).
-**Implementation:** ControlStrip emits menu_button_pressed signal. Hit detection 
-via _input() with dynamic rect scaling. Debounce 0.3s prevents double-fire.
-CraftingUI connects via get_first_node_in_group("control_strip") using 
-call_deferred. ControlStrip must be in group "control_strip" in scene tree.
-**Notes:** OS.has_feature() unreliable for mobile detection at runtime — use 
-touch/mouse both with debounce instead. ESC key also triggers menu_button_pressed.
+**Implementation:** ControlStrip emits menu_button_pressed. Hit detection via _input() with dynamic rect scaling. Debounce 0.3s. ESC key also triggers.
+
+---
 
 ### Android Export — Non-Resource File Inclusion (Session 2.43)
 **Date:** 2026-04-11
-**Decision:** CSV files must be explicitly included in Android export via 
-include_filter in the export preset, not via the Godot UI filter field.
-**Implementation:** In export preset: include_filter="data/*"
-This covers all files in res://data/ including all current and future CSVs.
-**Notes:** FileAccess.open("res://...") works on Android only if the file is 
-packed into the PCK. The UI "Filters to export non-resource files" field does 
-not reliably pack files. Edit the .cfg export preset directly if needed.
+**Decision:** CSV files must be included via include_filter in export preset.
+**Implementation:** include_filter="data/*"
+**Notes:** FileAccess.open("res://...") works on Android only if file is packed into PCK.
+
+---
 
 ### Spell Scaling Foundation (Session 2.44)
 **Date:** 2026-04-11
-**Decision:** Full scaling pipeline wired across SpellComposer, SpellCaster,
-and SpellProjectile.
-**Implementation:**
-- spell_elements.csv (replaces .txt): added ScaleValue1-5, ScaleDmgmult,
-  Status columns (indices 15-22). Only rows with Status="active" are loaded.
-- SpellComposer: reads scale columns into every row and effect dict. Fetches
-  get_school_tier(elemental) at compose time, embeds tier into each
-  on_hit_effect dict. effective_dmgmult = base_dmgmult + scale_dmgmult * tier.
-- SpellCaster: reads get_school_multiplier(elemental) at fire time, passes
-  item_base_dmg * school_mult into setup_from_spell().
-- SpellProjectile: _scaled(effect, base_key, scale_key) helper reads tier from
-  effect dict, returns base + scale * tier with full Variant safety.
-  All on-hit dispatcher cases use _scaled(). Fixed chilled (value3=slow,
-  value2=duration). Corruption tries apply_corruption() first, falls back to
-  apply_burn(). chain 2 renamed to purge (apply_purge + roundi). chain 1 uses
-  roundi. splash and tidal add apply_wet(). voidpull = negative pushback.
-  Removed lifeleech and judgement cases.
-**Notes:** _to_float() returns "" for blank cells (intentional for value1-5
-which can hold strings like "ice"). Scale fields arriving as "" are safely
-handled by _scaled() Variant coercion — no cast errors.
+**Decision:** Full scaling pipeline across SpellComposer, SpellCaster, SpellProjectile.
+- spell_elements.csv: ScaleValue1-5, ScaleDmgmult, Status columns. Only Status="active" rows loaded.
+- SpellComposer embeds tier into each on_hit_effect dict at compose time.
+- SpellCaster reads get_school_multiplier() at fire time.
+- SpellProjectile._scaled() reads tier from effect dict.
+
+---
 
 ### Delivery System (Session 2.45)
 **Date:** 2026-04-12
-**Decision:** All 7 delivery types implemented as separate scenes under
-res://scenes/deliveries/ with scripts under res://scripts/deliveries/.
-**Implementation:**
-- spell_caster.gd: removed @export projectile_scene. Added DELIVERY_SCENES
-  const with preload() for all 7 types. Added _spawn_delivery() branching
-  by delivery_type. CD floor raised to 1.5s. Delivery keys match
-  CraftingUI DELIVERIES array lowercased: bolt, burst, beam, blast,
-  cleave, missile, orbs, utility.
-- bolt.gd: direct copy of spell_projectile behaviour. Area2D, layer 5,
-  mask 4. Fixed direction tracking, absorb on hit.
-- burst.gd: identical to bolt but fixed direction — no tracking.
-  SpellCaster spawns 5 instances at -20/-10/0/+10/+20 degree offsets,
-  0.75x damage each.
-- missile.gd: homing. Steers toward nearest enemy at 120 deg/s turn
-  rate. Speed fixed at 400px/s. call_deferred("queue_free") on hit.
-  Added DESPAWN_Y fallback.
-- beam.gd: instant hit. Area2D root, 40px wide hit scan on X axis in
-  _execute_hit() called from setup_from_spell(). ColorRect visual
-  40x1920 extending upward from spawn. 1s lifetime with fade.
-- aoe.gd (scene: blast): instant radial hit. Node2D root. 300px radius
-  distance check in _execute_hit() called from setup_from_spell().
-  Polygon2D circle visual generated in _ready(), expands and fades
-  over 0.5s. Delivery key is "blast" matching CSV/CraftingUI.
-- cleave.gd: instant cone hit. Node2D root. 600px range, 45 degree
-  half-angle. Polygon2D sector drawn from shot_direction in _ready().
-  _execute_hit() called from setup_from_spell(). 0.3s fade.
-- orbs.gd: 3 persistent Area2D orbs orbit player at 85px radius,
-  90 deg/s. One hit per full 360° cycle per orb (max 3 hits/cycle).
-  Never queue_free on hit. Cleaned up on page change via "orbs" group.
-  orbit_index set via set_meta before add_child so _ready() reads it.
-- SummonManager.initialize(player) called from spell_caster._ready()
-  to set _player_ref before spawn_summon fires.
-- Summon position fix: await get_tree().process_frame after
-  call_deferred("add_child") so global_position is set after node
-  enters tree.
-- Volume controls: BGM and SFX sliders in CraftingUI spec list.
-  Persist via ConfigFile at user://settings.cfg [audio] bgm/sfx.
-  _volume_row_built flag resets when spec list container is cleared
-  so sliders rebuild correctly on reopen.
-**Notes:**
-- aoe.tscn root must be Node2D not Area2D (extends Node2D).
-  cleave.tscn same. beam.tscn and orb.tscn are Area2D.
-- instant-hit deliveries (beam, blast, cleave) call _execute_hit()
-  at end of setup_from_spell(), NOT in _ready() — _ready() fires
-  before setup_from_spell() sets global_position and damage.
-- spell_caster "blast"/"cleave" branch uses add_child BEFORE
-  setup_from_spell so _ready() fires first (draws visual polygon
-  at origin), then setup_from_spell sets position and calls
-  _execute_hit().
-- All delivery scripts share identical _apply_on_hit_effects(),
-  _scaled(), _apply_aoe() implementations copied from bolt.gd.
-- Summon still requires CSV row status="active" — all summon rows
-  are currently "inactive"/tbc. Set A0007 (fire) to active to test.
-- CraftingUI delivery dropdown saves lowercase strings matching
-  DELIVERY_SCENES keys exactly via _get_selected_option_value()
-  .to_lower().
+**Decision:** All 7 delivery types as separate scenes under res://scenes/deliveries/.
 
-  ### Session 2.46b — Spell Effects Testing + Debug Pass
+- bolt.gd: Area2D, layer 5, mask 4. Direction tracking. Absorb on hit.
+- burst.gd: 5 instances at ±20/±10/0° offsets, 0.75x damage each.
+- missile.gd: homing, 120 deg/s turn, 400px/s, call_deferred queue_free.
+- beam.gd: instant vertical hit scan 40px wide. ColorRect visual 1s fade.
+- aoe.gd (blast): instant 300px radial. Polygon2D circle, 0.5s fade.
+- cleave.gd: instant 600px cone, 45° half-angle. Polygon2D sector, 0.3s fade.
+- orbs.gd: 3 persistent Area2D orbs orbit at 85px, 90°/s, 1 hit/cycle/orb.
+
+**Notes:**
+- instant-hit deliveries call _execute_hit() at end of setup_from_spell(), NOT in _ready()
+- blast/cleave: add_child BEFORE setup_from_spell so _ready() draws polygon at origin first
+- All delivery scripts share identical _apply_on_hit_effects(), _scaled(), _apply_aoe()
+
+---
+
+### Session 2.46b — Spell Effects Testing + Debug Pass
 **Date:** 2026-04-13
 
-**Key findings and fixes:**
+- on_hit_effects must use `duplicate(true)` in setup_from_spell() in all delivery scripts
+- PassiveManager.recalculate() no longer resets _iceshield_still_timer
+- apply_slow() sets _is_chilled = true — enables brittle
+- apply_pushback() uses raw distance value (not divided)
+- Knockback guard in _physics_process() via _knockback_timer
+- SpellCaster stores _cd_reduction: float, applied in _configure_cooldown_timer()
+- ProgressionManager.heal(amount) added
+- CSVs must be imported as plain text, not translation resources
 
-- on_hit_effects were not copying into delivery scripts. All delivery scripts
-  (bolt, burst, beam, cleave, aoe, missile, orbs) now require:
-  `on_hit_effects = spell.on_hit_effects.duplicate(true)` in setup_from_spell().
-  var on_hit_effects: Array[Dictionary] = [] must be declared at class level.
-  burst.gd and beam.gd confirmed fixed this session.
+---
 
-- PassiveManager.recalculate() was resetting _iceshield_still_timer to 0,
-  preventing barrier from ever activating. Fix: removed that single reset line.
-  still_timer now persists across recalculate() calls.
+### Session 2.47 — Deferred Passives Part 1
+**Date:** 2026-04-13
 
-- apply_slow() in shooter.gd and tank.gd now sets _is_chilled = true,
-  enabling brittle to fire correctly after a slow is applied.
+**PassiveManager — three passive buckets**
+- `_active_passives` — cd_type=passive, target=self
+- `_active_cast_passives` — cd_type=cast, target=self
+- `_active_enemy_passives` — cd_type=passive, target=enemy
 
-- apply_pushback() velocity formula changed from distance / 0.3 to just distance.
-  The divisor was producing ~1700px/s impulse which was too large.
+**New APIs:**
+```gdscript
+# ProgressionManager
+register_debuff(name: String) -> void
+remove_debuffs(count: int) -> Array[String]
 
-- Knockback guard added to shooter.gd and tank.gd _physics_process():
-  _knockback_timer counts down and skips normal movement velocity while active.
-  move_and_slide() always runs outside the guard.
+# SummonManager
+heal_summon(amount: float) -> void
+get_summon_max_hp() -> float
+clear_debuffs() -> void   # no-op hook
 
-- SpellCaster now stores _cd_reduction: float = 0.0. apply_cd_reduction() saves
-  the value. _configure_cooldown_timer() applies it on every timer start:
-  wait_time = maxf(spell_data.cooldown - _cd_reduction, 1.5)
+# PassiveManager
+get_damage_amp() -> float   # rootedpower amp
+```
 
-- ProgressionManager.heal(amount) added: clamps to max_hp, emits hp_changed.
+**Passives implemented:**
+- holylight (F0005): stand 3.5s → heal player + summon for value2 * max_hp
+- dispel (F0006): stand 1s → remove value1 debuffs from player/summon
+- rootedpower (C0002): stand still → damage amp via get_damage_amp()
+- consecration (F0004): verified working
 
-- Damage routing through PassiveManager.get_effective_damage() confirmed working
-  via [EffDmg] debug prints. Iceshield barrier reduces damage when active.
+**Purge vs Dispel:** Thunder Purge removes enemy buffs. Holy Dispel removes player debuffs. Separate systems.
 
-- CSVs were imported as translation resources causing stale cached data.
-  Fix: deleted spell_elements.translation and deliveries.translation,
-  reimported CSVs as plain text. FileAccess.open() reads raw CSV correctly.
+---
 
-- apply_slow() sets _is_chilled = true. This means any slow source qualifies
-  an enemy for brittle. Strict chilled-only gating can be added later via a
-  separate apply_slow_chilled() method if needed.
+### Session 2.48 — Deferred Passives Part 2 + CD Timer Fix
+**Date:** 2026-04-14
 
-**Confirmed working this session:**
-  Fire: burndot, explosion, resist_bonus, stoneskin (earth slot)
-  Ice: chilled, brittle (requires slow first), chillaura, iceshield
-  Earth: stoneskin, stagger (chance-based, duration needs partner tuning)
-  Thunder: chain 1, flashcast, surge
-  Water: tidal (pushback), splash, bubbleaura, flowstate (needs heal() — now added)
-  Holy: radiance/blind, consecration, stop-cast mechanic
-  Dark: corruption, execute (20% chance), stop-cast mechanic
+### killfuel (A0005)
+**Decision:** On enemy death, shooter.gd and tank.gd call PassiveManager.on_enemy_killed() before _spawn_death_particles(). PassiveManager searches _active_passives for killfuel and calls apply_cd_reduction_instant(cd_cut) on all spell_casters group members.
+**Implementation:**
+```gdscript
+func apply_cd_reduction_instant(seconds: float) -> void:
+    if cooldown_timer == null or cooldown_timer.is_stopped():
+        return
+    var full_cd := maxf(spell_data.cooldown - _cd_reduction, 1.5) if spell_data != null else 1.5
+    var new_time := maxf(cooldown_timer.time_left - seconds, 0.1)
+    cooldown_timer.wait_time = full_cd
+    cooldown_timer.stop()
+    cooldown_timer.start(new_time)
+```
+**Notes:** Cuts time_left on current cycle only. wait_time reset to full_cd ensures next cycle is correct. Per-physics-frame dedup via `_killfuel_last_physics_frame: int` prevents multi-kill AoE stacking. Uses Engine.get_physics_frames() not get_process_frames() — all kill callbacks are physics-frame events.
 
-**Known remaining issues:**
-  - bolt, cleave, aoe, missile, orbs deliveries — on_hit_effects fix not verified
-  - beam.gd — on_hit_effects fix applied this session, not yet tested
-  - Chaser (enemy.gd) has no debuff surface — all effects silent on chasers
-  - PassiveManager self-passive routing: register_passive() in SpellComposer
-    is a dead path — PassiveManager does its own lookup via _append_passive_rows()
-  - rootedpower routing incorrectly as on_hit_effects (target=enemy, cd_type=passive)
-    — needs SpellComposer filter fix to exclude from on_hit_effects
-  - Stagger and rootedpower both cd_type=passive target=enemy — same routing issue
-  - soulsiphon and flowstate regen now unblocked (heal() added)
-  - Milestone bonuses not implemented in get_school_multiplier()
-  - get_school_multiplier uses 0.05/tier vs design doc 0.02/count — needs alignment
+### CD Timer Architecture Fix (critical — Session 2.48)
+**Decision:** SpellCaster.cooldown_timer changed from one_shot=false to one_shot=true.
+**Reason:** one_shot=false caused wait_time corruption — when stop()/start(new_time) was called by killfuel, Godot stored new_time as the new wait_time, so the next natural cycle looped at the reduced time instead of full_cd. Confirmed via debug output showing wait_time degrading across successive kills.
+**Implementation:** _on_cooldown_timer_timeout() manually restarts at full_cd after firing:
+```gdscript
+# At end of _on_cooldown_timer_timeout(), after _spawn_delivery():
+var full_cd := maxf(spell_data.cooldown - _cd_reduction, 1.5) if spell_data != null else 1.5
+cooldown_timer.wait_time = full_cd
+cooldown_timer.start()
+```
+**Notes:** Never set one_shot=false on cooldown_timer. Always restart manually.
 
-  ### Session 2.47 — Deferred Passives Part 1 (Quick Wins)
+### overheat (A0006)
+**Decision:** SpellCaster tracks _cast_count and _overheat_ready. _check_overheat() increments count on every fire. On threshold, sets _overheat_amp and _overheat_ready=true. On next fire, a 0.3s deferred timer spawns a second delivery at amplified damage, then resets both flags.
+**Notes:** Boosted shot fires 0.3s after normal shot — visually distinct. Badge in buff row shows only while _overheat_ready=true. ControlStrip reads _overheat_ready from each SpellCaster child.
 
-**apply_purge (Thunder school — future-proof shell)**
-- shooter.gd and tank.gd both receive `var _active_buffs: Array[String] = []`
-  and `apply_purge(count: int)` which pops from the back.
-- No enemy buffs exist yet — purge is a no-op shell for future use.
-- Do NOT track debuffs on enemies — purge only removes buffs.
+### bloodpower (G0004)
+**Decision:** PassiveManager.get_bloodpower_amp() reads from _active_cast_passives. Computes hp_pct from ProgressionManager. Returns amp_low below threshold_low, amp_medium between thresholds, 0.0 above threshold_high. Called in both SpellCaster fire paths after get_damage_amp().
 
-**Debuff tracking on ProgressionManager**
-- `register_debuff(name: String)` — pushes to `_active_debuffs`
-- `remove_debuffs(count: int) -> Array[String]` — pops most-recent-first
-- `reset_run()` now clears `_active_debuffs`
+### soulsiphon (G0005) — rearchitecture
+**Decision:** Removed soulsiphon from spell_projectile._apply_on_hit_effects(). PassiveManager.get_soulsiphon_leech() reads from _active_cast_passives. All 7 delivery scripts call leech after every enemy.take_damage().
+**Notes:** Legacy soulsiphon arm still present in _apply_on_hit_effects() in all 7 delivery scripts as of session close — remove in 2.49 to prevent double-heal.
 
-**SummonManager new API**
-- `heal_summon(amount: float)` — clamps to _max_hp, emits summon_hp_changed
-- `get_summon_max_hp() -> float` — returns _max_hp
-- `clear_debuffs()` — no-op hook, summon debuffing not yet implemented
+### Burn Stacking (Session 2.48)
+**Decision:** apply_burn() in shooter.gd and tank.gd stacks additively. On reapplication while burn timer active: _burn_damage += dmg_per_tick, tick count resets to full duration. Fresh applications behave as before.
+**Notes:** Stacking is unbounded — partner to tune dmg_per_tick values if accumulation becomes excessive.
 
-**PassiveManager — three new passive buckets**
-- `_active_passives` — cd_type=passive, target=self (existing)
-- `_active_cast_passives` — cd_type=cast, target=self (NEW)
-- `_active_enemy_passives` — cd_type=passive, target=enemy (NEW)
-- All three populated in recalculate() inside the slot loop
-- `_append_passive_rows()` updated to loop both "self" and "enemy" targets
-  and allow both "passive" and "cast" cd_types through
+### Dynamic Stagger Spacing (Session 2.48)
+**Decision:** _refresh_all_casters() in player.gd now distributes stagger evenly across only actively firing casters. Excludes empty elemental, utility delivery, and stop-cast slots.
+**Implementation:** interval = min_cd / active_count, floored at 0.5s. Stagger = i * interval.
+**Reason:** Fixed 1s offsets wasted time gaps when fewer than 4 slots were active.
 
-**holylight (F0005) — cd_type=cast, target=self**
-- Still-timer pattern (mirrors iceshield)
-- After value1=3.5s still, heals player and summon for value2 * max_hp
-- Resets still-timer on movement, repeats on next stand threshold
+### Control Strip — 4-slot CD Row (Session 2.48)
+**Decision:** spell_cd_label hidden. Replaced with 4 slot CD labels + colour bars built in _build_slot_cd_row(). Each slot shows S# RDY (green) or S# X.Xs (white) with fill bar red→yellow→green. Utility and empty slots show S# —. Updated every _process frame in _refresh_spell_cd().
 
-**dispel (F0006) — cd_type=cast, target=self**
-- Stop-cast style still-timer: value2=1s stand → remove value1 debuffs
-- Calls ProgressionManager.remove_debuffs(count) and SummonManager.clear_debuffs()
-- disp_count uses _scaled() with roundi() to handle ScaleValue1 fractional scaling
-- Registration wiring (calling register_debuff on hit) deferred to Session 2.48
+### Enemy Debuff Flash Colours (Session 2.48)
+**Decision:** _flash_debuff_colour(colour: Color) added to shooter.gd and tank.gd. Called from each apply_* method on application. Reuses hit_flash_tween. Holds debuff colour briefly before returning to base.
+**Colours:** burn=orange, corrupt=purple, wet=dark blue, chill/slow=light blue, blind=white.
 
-**rootedpower (C0002) — cd_type=passive, target=enemy**
-- Stand still for value1 seconds → _rootedpower_amp set to value2
-- Resets immediately on movement
-- Exposed via PassiveManager.get_damage_amp() -> float
-- SpellCaster reads get_damage_amp() in both _on_cooldown_timer_timeout()
-  and _try_stop_cast_fire(), multiplies into final_dmg as (1.0 + amp)
+### Player Heal Flash (Session 2.48)
+**Decision:** Player.flash_heal() flashes self.modulate green. Called from ProgressionManager.heal() — covers all heal sources (soulsiphon, holylight, flowstate, consecration).
+**Notes:** Flashes self not player_sprite.modulate — avoids conflict with iframe alpha tween which animates children's modulate.a independently.
 
-**soulsiphon (G0005) — known issue**
-- Heal logic in spell_projectile._apply_on_hit_effects() is correct but
-  only fires when a projectile hits an enemy
-- Utility delivery is a no-op so soulsiphon never procs on that slot
-- Root cause: soulsiphon should proc on ALL damage, not per-projectile
-- Rearchitecture deferred to Session 2.48 Step 5 — move to PassiveManager
-  get_soulsiphon_leech() called from every delivery script after take_damage()
-
-**consecration (F0004) — verified working**
-- Debug print confirmed firing at correct interval
-- Print removed at session close
-
-**Purge vs Dispel distinction (design clarification)**
-- Thunder Purge = removes enemy BUFFS (regen, shields etc) — targets enemy
-- Holy Dispel = removes player/summon DEBUFFS (burn, slow etc) — targets self
-- These are separate systems, separate tracking arrays, separate methods
-
-**ProgressionManager new API (Session 2.47):**
-  register_debuff(name: String) -> void
-  remove_debuffs(count: int) -> Array[String]
-
-**SummonManager new API (Session 2.47):**
-  heal_summon(amount: float) -> void
-  get_summon_max_hp() -> float
-  clear_debuffs() -> void   # no-op hook
-
-**PassiveManager new API (Session 2.47):**
-  get_damage_amp() -> float   # rootedpower amp, 0.0 when moving
-
-  
+### Buff Badge Debuff Pulsing (Session 2.48)
+**Decision:** Debuff badges in ControlStrip buff row pulse via looping tween on modulate.a (1.0 → 0.25 → 1.0 at 0.35s per phase). DEBUFF_FLASH_COLOURS const maps effect_name to Color. Passives without a flash colour entry remain static.
