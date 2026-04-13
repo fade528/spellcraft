@@ -83,11 +83,6 @@ func flip_to_page(index: int) -> void:
 				)
 			caster_index += 1
 
-	# Spawn summon for new page
-	var sm = get_node_or_null("/root/SummonManager")
-	if sm != null and sm.has_method("spawn_summon") and sm.is_recharged():
-		sm.spawn_summon(page.summon_element)
-
 	# Set flip cooldown = longest total_cd across all SpellCasters
 	var longest_cd := 0.0
 	if player != null:

@@ -7,6 +7,7 @@ signal hit(target: Node, damage: float)
 @export var direction: Vector2 = Vector2.UP
 var on_hit_effects: Array[Dictionary] = []
 var spell_final_dmg: float = 0.0
+var _speed_multiplier: float = 1.0
 
 const DESPAWN_Y := -50.0
 
@@ -16,10 +17,14 @@ func _ready() -> void:
 
 
 func _physics_process(delta: float) -> void:
-	global_position += direction * projectile_speed * delta
+	global_position += direction * projectile_speed * _speed_multiplier * delta
 
 	if global_position.y < DESPAWN_Y:
 		queue_free()
+
+
+func set_speed_multiplier(mult: float) -> void:
+	_speed_multiplier = clampf(mult, 0.0, 1.0)
 
 
 func setup(spawn_position: Vector2, move_direction: Vector2, new_damage: float, new_projectile_speed: float) -> void:
@@ -135,8 +140,10 @@ func _apply_on_hit_effects(target: Node) -> void:
 					target
 				)
 			"chain 1":
+				var bounce_val := _scaled(effect, "value1", "scale_value1")
+				var bounce_count := roundi(bounce_val)
 				if target.has_method("apply_chain"):
-					target.apply_chain(roundi(_scaled(effect, "value1", "scale_value1")))
+					target.apply_chain(bounce_count)
 			"purge":
 				if target.has_method("apply_purge"):
 					target.apply_purge(roundi(_scaled(effect, "value1", "scale_value1")))
@@ -156,7 +163,8 @@ func _apply_on_hit_effects(target: Node) -> void:
 					target.apply_wet()
 			"tidal":
 				if target.has_method("apply_pushback"):
-					target.apply_pushback(_scaled(effect, "value1", "scale_value1"))
+					var tidal_pushback := _scaled(effect, "value1", "scale_value1")
+					target.apply_pushback(tidal_pushback)
 				if target.has_method("apply_wet"):
 					target.apply_wet()
 			"voidpull":

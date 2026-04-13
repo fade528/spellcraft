@@ -1,6 +1,6 @@
 delivery_id,behavior,unit interaction,range,speed,cd,single target dps,projectile_count,pattern,target
 Bolt,standard missle with direction tracking on fire and homing,absorb on hit,infinite,average,1,1,1,bolt,enemy
-Missle,standard missle without any tracking butslower speed and higher dmg,absorb on hit,infinite,slow,1,1.2,1,missle,enemy
+Missile,standard missle without any tracking butslower speed and higher dmg,absorb on hit,infinite,slow,1,1.2,1,missile,enemy
 Burst,"tri shot with 25% reduced dmg at 10degree angle on each side, with lower dmg",absorb on hit,infinite,average,1,0.75,5,splitshot,enemy
 Beam,"instant straight line with max y axis, penetrates all units, some dmg reduction",nothing on hit,"ininite y axis, lasts 1 second",instant,1,0.85,1,beam,enemy
 Aoe,360 around the caster with significant range and dmg reduced,nothing on hit,300px radius around the player ,fast,1,0.5,1,radial_360,enemy

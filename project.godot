@@ -23,6 +23,7 @@ SpellComposer="*uid://djl4jfw7rs7f2"
 SummonManager="*uid://cseuxiiya64qd"
 TomeManager="*uid://vi6ku77bseti"
 SpecManager="*uid://dgirktqnpyxha"
+PassiveManager="*res://scripts/managers/passive_manager.gd"
 
 [display]
 

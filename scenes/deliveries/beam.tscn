@@ -1,0 +1,21 @@
+[gd_scene format=3 uid="uid://cog7wwgarlutp"]
+
+[ext_resource type="Script" uid="uid://swa4yd1nh1c4" path="res://scripts/deliveries/beam.gd" id="1_bilml"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_mnuus"]
+size = Vector2(30, 1920)
+
+[node name="Beam" type="Area2D" unique_id=688263382]
+collision_layer = 16
+collision_mask = 0
+script = ExtResource("1_bilml")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1258836081]
+shape = SubResource("RectangleShape2D_mnuus")
+disabled = true
+
+[node name="ColorRect" type="ColorRect" parent="." unique_id=322530948]
+custom_minimum_size = Vector2(30, 1920)
+offset_right = 40.0
+offset_bottom = 40.0
+color = Color(0, 0.8235294, 0.8156863, 0.5294118)

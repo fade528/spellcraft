@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://cyoqgq5k1dsjy"]
+
+[ext_resource type="Script" uid="uid://dkf86hntk1jqp" path="res://scripts/deliveries/aoe.gd" id="1_p32hm"]
+
+[node name="Aoe" type="Area2D" unique_id=1445500589]
+collision_layer = 16
+collision_mask = 8
+script = ExtResource("1_p32hm")
+
+[node name="Polygon2D" type="Polygon2D" parent="." unique_id=986727003]

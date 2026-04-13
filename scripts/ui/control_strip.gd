@@ -10,15 +10,26 @@ signal menu_button_pressed
 const STRIP_HEIGHT := 384.0
 const SCREEN_WIDTH := 1080.0
 const SCREEN_HEIGHT := 1920.0
+const BUFF_COLOURS := {
+	"fire": Color(0.88, 0.31, 0.19),
+	"ice": Color(0.38, 0.82, 0.94),
+	"earth": Color(0.75, 0.50, 0.25),
+	"thunder": Color(0.94, 0.89, 0.13),
+	"water": Color(0.25, 0.50, 0.88),
+	"holy": Color(0.95, 0.95, 0.85),
+	"dark": Color(0.56, 0.25, 0.75)
+}
 
 var _hp_bar: ProgressBar
 var _hp_label: Label
+var _buff_row: HBoxContainer = null
 var _summon_hp_bar: ProgressBar
 var _summon_recharge_label: Label
 var _school_tier_labels: Dictionary = {}
 var _life_rects: Array[ColorRect] = []
 var _action_buttons: Array[ColorRect] = []
 var _menu_btn_cooldown: float = 0.0
+var _buff_refresh_timer: float = 0.0
 var _menu_button_screen_rect: Rect2 = Rect2()
 var _boss_bar_container: Control
 
@@ -35,17 +46,17 @@ func _ready() -> void:
 	_build_action_buttons()
 	_build_boss_bar()
 
-	active_page_label.position = Vector2(SCREEN_WIDTH / 2.0 - 150.0, 60.0)
+	active_page_label.position = Vector2(SCREEN_WIDTH / 2.0 - 150.0, 80.0)
 	active_page_label.size = Vector2(300.0, 50.0)
 	active_page_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	active_page_label.add_theme_font_size_override("font_size", 28)
 
-	spell_cd_label.position = Vector2(SCREEN_WIDTH / 2.0 - 150.0, 112.0)
+	spell_cd_label.position = Vector2(SCREEN_WIDTH / 2.0 - 150.0, 130.0)
 	spell_cd_label.size = Vector2(300.0, 40.0)
 	spell_cd_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	spell_cd_label.add_theme_font_size_override("font_size", 22)
 
-	summon_label.position = Vector2(SCREEN_WIDTH / 2.0 - 150.0, 160.0)
+	summon_label.position = Vector2(SCREEN_WIDTH / 2.0 - 150.0, 178.0)
 	summon_label.size = Vector2(300.0, 40.0)
 	summon_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	summon_label.add_theme_font_size_override("font_size", 22)
@@ -79,6 +90,7 @@ func _ready() -> void:
 		sm.summon_recharge_tick.connect(_on_summon_recharge_tick)
 
 	_refresh_all()
+	_refresh_buffs()
 	var hud = get_tree().get_first_node_in_group("hud")
 	if hud == null:
 		hud = get_tree().current_scene.get_node_or_null("HUD")
@@ -104,6 +116,12 @@ func _build_hp_row() -> void:
 	_hp_label.text = "100 / 100"
 	_hp_label.add_theme_font_size_override("font_size", 22)
 	strip_panel.add_child(_hp_label)
+
+	_buff_row = HBoxContainer.new()
+	_buff_row.name = "BuffRow"
+	_buff_row.position = Vector2(40.0, 44.0)
+	_buff_row.size = Vector2(SCREEN_WIDTH - 80.0, 24.0)
+	strip_panel.add_child(_buff_row)
 
 	for i in range(3):
 		var life_rect: ColorRect = ColorRect.new()
@@ -159,7 +177,7 @@ func _build_mana_display() -> void:
 		var tier_label := Label.new()
 		tier_label.position = Vector2(center_x - 20.0, 288.0)
 		tier_label.size = Vector2(40.0, 24.0)
-		tier_label.text = "T0"
+		tier_label.text = "M0"
 		tier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		tier_label.add_theme_font_size_override("font_size", 20)
 		strip_panel.add_child(tier_label)
@@ -247,9 +265,77 @@ func _build_boss_bar() -> void:
 func _process(delta: float) -> void:
 	if _menu_btn_cooldown > 0.0:
 		_menu_btn_cooldown -= delta
+	_buff_refresh_timer += delta
+	if _buff_refresh_timer >= 0.5:
+		_buff_refresh_timer = 0.0
+		_refresh_buffs()
 	_refresh_spell_cd()
 	_refresh_summon()
 	update_mana_display()
+
+
+func _refresh_buffs() -> void:
+	if _buff_row == null or not is_instance_valid(_buff_row):
+		return
+	for child in _buff_row.get_children():
+		child.queue_free()
+
+	var pm = get_node_or_null("/root/PassiveManager")
+	if pm == null:
+		return
+	var passives: Array = pm._active_passives
+	if passives.is_empty():
+		return
+
+	var seen: Dictionary = {}
+	for effect in passives:
+		if not effect is Dictionary:
+			continue
+		var effect_dict := effect as Dictionary
+		var name: String = str(effect_dict.get("effect_name", ""))
+		if name == "" or seen.has(name):
+			continue
+
+		if name == "iceshield":
+			if pm != null and pm.has_method("is_iceshield_active"):
+				if not pm.is_iceshield_active():
+					continue
+		if name == "flowstate":
+			if not pm.get("_flowstate_active"):
+				continue
+		# rootedpower, bloodpower etc. can add state checks here when implemented.
+
+		seen[name] = true
+
+		var element: String = str(effect_dict.get("element", "")).to_lower()
+		var colour: Color = BUFF_COLOURS.get(element, Color(0.7, 0.7, 0.7))
+
+		var wrapper := PanelContainer.new()
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(colour.r, colour.g, colour.b, 0.2)
+		style.set_corner_radius_all(4)
+		style.border_color = colour
+		style.border_width_left = 1
+		style.border_width_right = 1
+		style.border_width_top = 1
+		style.border_width_bottom = 1
+		style.content_margin_left = 6
+		style.content_margin_right = 6
+		style.content_margin_top = 1
+		style.content_margin_bottom = 1
+		wrapper.add_theme_stylebox_override("panel", style)
+
+		var lbl := Label.new()
+		lbl.text = name.replace("_", " ").capitalize()
+		lbl.add_theme_font_size_override("font_size", 16)
+		lbl.add_theme_color_override("font_color", colour)
+		lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+		wrapper.add_child(lbl)
+
+		_buff_row.add_child(wrapper)
+		var spacer := Control.new()
+		spacer.custom_minimum_size = Vector2(6, 0)
+		_buff_row.add_child(spacer)
 
 
 func _refresh_all() -> void:
@@ -321,7 +407,7 @@ func update_mana_display() -> void:
 		return
 	for school in _school_tier_labels:
 		var tier: int = int(inv.get_school_tier(school))
-		_school_tier_labels[school].text = "T%d" % tier
+		_school_tier_labels[school].text = "M%d" % tier
 	var mana_label := strip_panel.get_node_or_null("ManaPoolLabel")
 	if mana_label != null:
 		mana_label.text = "Mana: %d  |  Free: %d" % [inv.mana_pool, inv.unallocated_mana]

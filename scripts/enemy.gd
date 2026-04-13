@@ -85,9 +85,10 @@ func _process(delta: float) -> void:
 		_blind_direction = Vector2.from_angle(randf_range(0.0, TAU))
 
 
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, attacker_element: String = "") -> void:
+	var incoming_mult := get_incoming_multiplier(attacker_element)
 	var is_crit := randf() < crit_chance
-	var final_damage := amount
+	var final_damage := amount * incoming_mult
 
 	if is_crit:
 		final_damage *= crit_multiplier

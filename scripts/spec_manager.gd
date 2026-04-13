@@ -6,6 +6,8 @@ const SPEC_PATHS := {
 	"Archmage": "res://data/specs/archmage.tres",
 }
 const CUSTOM_SAVE_PATH := "user://specs.json"
+const SETTINGS_PATH := "user://settings.cfg"
+const SETTINGS_SECTION := "spec"
 
 var _active_spec: SpecData = null
 var _active_spec_name: String = ""
@@ -14,6 +16,7 @@ var _custom_specs: Dictionary = {}
 
 func _ready() -> void:
 	load_custom_specs()
+	_load_active_spec()
 
 
 func apply_spec(spec_name: String) -> void:
@@ -37,6 +40,7 @@ func apply_spec(spec_name: String) -> void:
 	if tm != null:
 		var preferred: Array = _active_spec.preferred_slots if _active_spec != null else []
 		tm.load_for_spec(spec_name, preferred)
+	_save_active_spec()
 
 
 func clear_spec() -> void:
@@ -45,6 +49,25 @@ func clear_spec() -> void:
 	var tm = get_node_or_null("/root/TomeManager")
 	if tm != null:
 		tm.load_for_spec("archmage", [])
+	_save_active_spec()
+
+
+func _save_active_spec() -> void:
+	var cfg := ConfigFile.new()
+	cfg.load(SETTINGS_PATH)
+	cfg.set_value(SETTINGS_SECTION, "active_name", _active_spec_name)
+	cfg.save(SETTINGS_PATH)
+
+
+func _load_active_spec() -> void:
+	var cfg := ConfigFile.new()
+	if cfg.load(SETTINGS_PATH) != OK:
+		return
+	var saved_name: String = str(cfg.get_value(SETTINGS_SECTION, "active_name", ""))
+	if saved_name == "" or saved_name == "Archmage":
+		return
+	if SPEC_PATHS.has(saved_name) or _custom_specs.has(saved_name):
+		apply_spec(saved_name)
 
 
 func get_active_spec() -> SpecData:

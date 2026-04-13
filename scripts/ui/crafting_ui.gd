@@ -1,7 +1,35 @@
 extends CanvasLayer
 
 const ELEMENTS := ["Fire", "Ice", "Earth", "Thunder", "Water", "Holy", "Dark"]
-const DELIVERIES := ["Bolt", "Burst", "Beam", "Blast", "Cleave", "Missile", "Wall", "Utility"]
+const DELIVERIES := ["Bolt", "Burst", "Beam", "Blast", "Cleave", "Missile", "Orbs", "Utility"]
+const ELEMENT_COLOURS := {
+	"fire": "#e05030",
+	"ice": "#60d0f0",
+	"earth": "#c08040",
+	"thunder": "#f0e020",
+	"water": "#4080e0",
+	"holy": "#f0f0f0",
+	"dark": "#9040c0"
+}
+const ELEMENT_COLOURS_NODE := {
+	"fire": Color(0.88, 0.31, 0.19),
+	"ice": Color(0.38, 0.82, 0.94),
+	"earth": Color(0.75, 0.50, 0.25),
+	"thunder": Color(0.94, 0.89, 0.13),
+	"water": Color(0.25, 0.50, 0.88),
+	"holy": Color(0.95, 0.95, 0.85),
+	"dark": Color(0.56, 0.25, 0.75)
+}
+const DELIVERY_DESCRIPTIONS := {
+	"bolt": "Standard missile with direction tracking and homing.",
+	"missile": "Standard missile without tracking but slower speed and higher dmg.",
+	"burst": "Tri shot with 25% reduced dmg at 10 degree angle each side.",
+	"beam": "Instant straight line with max Y axis, penetrates all units.",
+	"blast": "360 around the caster with significant range, dmg reduced.",
+	"cleave": "Frontal cone with predefined hitbox range, easy to hit zone.",
+	"orbs": "3 orbs surround and rotate the player, each rotate is 1 instance per orb.",
+	"utility": "Self-targeted effect."
+}
 
 signal ui_closed
 
@@ -14,6 +42,19 @@ var _spec_ratios: Dictionary = {}
 var _ratio_input_fields: Dictionary = {}
 var _spec_editor_page_index: int = 0
 var _spec_page_section: VBoxContainer = null
+var _draft_allocation: Dictionary = {}
+var _draft_mana_pool: int = 0
+var _draft_initialised: bool = false
+var _alloc_spinboxes: Dictionary = {}
+var _draft_slots: Array[Dictionary] = []
+var _slots_draft_dirty: bool = false
+var _draft_page_name: String = ""
+var _nav_prev_btn: Button = null
+var _nav_next_btn: Button = null
+var _nav_add_btn: Button = null
+var _nav_remove_btn: Button = null
+var _activate_btn: Button = null
+var _confirm_spells_btn: Button = null
 
 @onready var panel_container: PanelContainer = $PanelContainer
 @onready var tome_view: VBoxContainer = $PanelContainer/TomeView
@@ -29,6 +70,7 @@ var _spec_page_section: VBoxContainer = null
 @onready var back_button: Button = $PanelContainer/PageEditorView/BackButton
 var _tab_bar: HBoxContainer = null
 var _spec_tab_container: VBoxContainer = null
+var _volume_row_built: bool = false
 
 
 func _ready() -> void:
@@ -40,6 +82,15 @@ func _ready() -> void:
 		if child != page_list:
 			child.hide()
 	_build_tab_ui()
+
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.12, 0.12, 0.15, 1.0)
+	style.set_corner_radius_all(0)
+	style.border_width_left = 0
+	style.border_width_right = 0
+	style.border_width_top = 0
+	style.border_width_bottom = 0
+	panel_container.add_theme_stylebox_override("panel", style)
 
 	call_deferred("_connect_menu_button")
 
@@ -108,6 +159,8 @@ func _on_spec_tab_pressed() -> void:
 
 
 func _switch_to_spec_list() -> void:
+	_draft_initialised = false
+	_slots_draft_dirty = false
 	_current_tab = TabView.SPEC_LIST
 	_spec_tab_container.show()
 	if _spec_editor_container != null:
@@ -120,6 +173,7 @@ func _switch_to_spec_list() -> void:
 func _populate_spec_list() -> void:
 	for child in _spec_tab_container.get_children():
 		child.queue_free()
+	_volume_row_built = false
 
 	var sm = get_node_or_null("/root/SpecManager")
 	var active_name := ""
@@ -252,6 +306,89 @@ func _populate_spec_list() -> void:
 	resume_row.add_child(resume_btn)
 	_spec_tab_container.add_child(resume_row)
 
+	if not _volume_row_built:
+		_spec_tab_container.add_child(HSeparator.new())
+		_build_volume_row(_spec_tab_container)
+		_volume_row_built = true
+
+
+func _set_bgm_volume(linear: float) -> void:
+	var bgm: AudioStreamPlayer = get_tree().current_scene.get_node_or_null("BGMusic") as AudioStreamPlayer
+	if bgm != null:
+		bgm.volume_db = linear_to_db(max(linear, 0.0001))
+
+
+func _set_sfx_volume(linear: float) -> void:
+	for sfx_name in ["SpellHitSFX", "PlayerHurtSFX", "EnemyDeathSFX"]:
+		var sfx: AudioStreamPlayer = get_tree().current_scene.get_node_or_null(sfx_name) as AudioStreamPlayer
+		if sfx != null:
+			sfx.volume_db = linear_to_db(max(linear, 0.0001))
+
+
+func _save_volume_settings(bgm: float, sfx: float) -> void:
+	var cfg := ConfigFile.new()
+	cfg.set_value("audio", "bgm", bgm)
+	cfg.set_value("audio", "sfx", sfx)
+	cfg.save("user://settings.cfg")
+
+
+func _load_volume_settings() -> Vector2:
+	var cfg := ConfigFile.new()
+	var err := cfg.load("user://settings.cfg")
+	if err != OK:
+		return Vector2(0.8, 0.8)
+	var bgm: float = float(cfg.get_value("audio", "bgm", 0.8))
+	var sfx: float = float(cfg.get_value("audio", "sfx", 0.8))
+	return Vector2(bgm, sfx)
+
+
+func _build_volume_row(parent: Control) -> void:
+	var row := HBoxContainer.new()
+	row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var bgm_lbl := Label.new()
+	bgm_lbl.text = "BGM"
+	bgm_lbl.custom_minimum_size = Vector2(50, 0)
+	row.add_child(bgm_lbl)
+
+	var bgm_slider := HSlider.new()
+	bgm_slider.min_value = 0.0
+	bgm_slider.max_value = 1.0
+	bgm_slider.step = 0.05
+	bgm_slider.value = 0.8
+	bgm_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(bgm_slider)
+
+	var sfx_lbl := Label.new()
+	sfx_lbl.text = "SFX"
+	sfx_lbl.custom_minimum_size = Vector2(50, 0)
+	row.add_child(sfx_lbl)
+
+	var sfx_slider := HSlider.new()
+	sfx_slider.min_value = 0.0
+	sfx_slider.max_value = 1.0
+	sfx_slider.step = 0.05
+	sfx_slider.value = 0.8
+	sfx_slider.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	row.add_child(sfx_slider)
+
+	var saved := _load_volume_settings()
+	bgm_slider.value = saved.x
+	sfx_slider.value = saved.y
+	_set_bgm_volume(saved.x)
+	_set_sfx_volume(saved.y)
+
+	bgm_slider.value_changed.connect(func(v: float) -> void:
+		_set_bgm_volume(v)
+		_save_volume_settings(v, sfx_slider.value)
+	)
+	sfx_slider.value_changed.connect(func(v: float) -> void:
+		_set_sfx_volume(v)
+		_save_volume_settings(bgm_slider.value, v)
+	)
+
+	parent.add_child(row)
+
 
 func _on_activate_spec_from_list(spec_name: String) -> void:
 	var sm = get_node_or_null("/root/SpecManager")
@@ -313,6 +450,8 @@ func _on_save_archmage_as_spec_pressed() -> void:
 
 
 func _on_edit_spec_pressed(spec_name: String) -> void:
+	_draft_initialised = false
+	_slots_draft_dirty = false
 	_editing_spec_name = spec_name
 	_switch_to_spec_editor()
 	# Spec editor coming in next step - stub for now
@@ -335,6 +474,18 @@ func _on_new_spec_pressed() -> void:
 
 
 func _switch_to_spec_editor() -> void:
+	if not _draft_initialised:
+		var inv = get_node_or_null("/root/PlayerInventory")
+		if inv != null:
+			_draft_allocation = inv.school_allocation.duplicate()
+			_draft_mana_pool = inv.mana_pool
+		else:
+			_draft_allocation = {}
+			_draft_mana_pool = 0
+		var tm_page = get_node_or_null("/root/TomeManager")
+		if tm_page != null and _draft_initialised == false:
+			_spec_editor_page_index = tm_page.active_page_index
+		_draft_initialised = true
 	_current_tab = TabView.SPEC_EDITOR
 	_spec_tab_container.hide()
 	_spec_editor_container.show()
@@ -377,6 +528,7 @@ func _populate_spec_editor() -> void:
 	_spec_editor_container.add_child(HSeparator.new())
 
 	_spec_school_labels.clear()
+	_alloc_spinboxes.clear()
 
 	var sm = get_node_or_null("/root/SpecManager")
 	var inv = get_node_or_null("/root/PlayerInventory")
@@ -423,57 +575,67 @@ func _populate_spec_editor() -> void:
 	_spec_editor_container.add_child(page_section_label)
 	_spec_page_section = VBoxContainer.new()
 	_spec_page_section.name = "PageSection"
-	_spec_editor_container.add_child(_spec_page_section)
+	_spec_page_section.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+
+	var scroll := ScrollContainer.new()
+	scroll.name = "PageScroll"
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.add_child(_spec_page_section)
+	_spec_editor_container.add_child(scroll)
 	_repopulate_page_section()
 
 	# Live school allocation with +/-
 	_spec_editor_container.add_child(HSeparator.new())
+	var alloc_header_row := HBoxContainer.new()
 	var alloc_title := Label.new()
 	alloc_title.text = "Mana & Ratios:"
 	alloc_title.modulate = Color(0.8, 0.8, 0.8)
-	_spec_editor_container.add_child(alloc_title)
+	alloc_header_row.add_child(alloc_title)
+	var header_spacer := Control.new()
+	header_spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	alloc_header_row.add_child(header_spacer)
+	var header_mana_lbl := Label.new()
+	header_mana_lbl.name = "SpecManaLabel"
+	var total_mana: int = _draft_mana_pool
+	var free_mana_header: int = _draft_mana_pool - _get_draft_allocated_total()
+	header_mana_lbl.text = "Mana: %d | Free: %d" % [total_mana, free_mana_header]
+	header_mana_lbl.modulate = Color(0.8, 0.8, 0.8)
+	alloc_header_row.add_child(header_mana_lbl)
+	_spec_editor_container.add_child(alloc_header_row)
 	var shared_school_row := HBoxContainer.new()
 	var SCHOOL_NAMES := ["fire", "ice", "earth", "thunder", "water", "holy", "dark"]
 	for school in SCHOOL_NAMES:
+		var school_key: String = str(school).to_lower()
 		var school_name_lbl := Label.new()
-		school_name_lbl.text = school.capitalize()
+		school_name_lbl.text = "%s %d" % [school.capitalize(), int(_draft_allocation.get(school_key, 0))]
 		school_name_lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		school_name_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		school_name_lbl.modulate = ELEMENT_COLORS.get(school, Color.WHITE)
+		_spec_school_labels[school_key] = school_name_lbl
 		shared_school_row.add_child(school_name_lbl)
 	var is_editing_archmage: bool = (_editing_spec_name == "" or _editing_spec_name == "Archmage")
 	var is_archmage_edit: bool = is_editing_archmage
-	_ratio_input_fields.clear()
-	var ratio_input_row := HBoxContainer.new()
-	for school in SCHOOL_NAMES:
-		var input := LineEdit.new()
-		input.name = "RatioInput_" + school
-		var pct_val := int(_spec_ratios.get(school, 0.0) * 100.0)
-		input.text = str(pct_val) if pct_val > 0 else ""
-		input.placeholder_text = "0"
-		input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		ratio_input_row.add_child(input)
-		_ratio_input_fields[school] = input
-	var ratio_hint := Label.new()
-	ratio_hint.text = "Enter whole numbers (e.g. 80 / 20). Values normalise on save."
-	ratio_hint.add_theme_font_size_override("font_size", 18)
-	ratio_hint.modulate = Color(0.7, 0.7, 0.7)
 	_spec_editor_container.add_child(shared_school_row)
-	if not is_archmage_edit:
-		_spec_editor_container.add_child(ratio_input_row)
-		_spec_editor_container.add_child(ratio_hint)
 	var live_swatch_row := HBoxContainer.new()
 	var SCHOOL_NAMES2 := ["fire", "ice", "earth", "thunder", "water", "holy", "dark"]
 	for school in SCHOOL_NAMES2:
 		var col2 := VBoxContainer.new()
 		col2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		var tier_lbl2 := Label.new()
-		var tier2: int = inv.get_school_tier(school) if inv != null else 0
-		tier_lbl2.text = "T%d" % tier2
-		tier_lbl2.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		tier_lbl2.modulate = ELEMENT_COLORS.get(school, Color.WHITE)
-		_spec_school_labels[school] = tier_lbl2
-		col2.add_child(tier_lbl2)
+		var tier_input := SpinBox.new()
+		var current_allocation: int = int(_draft_allocation.get(school.to_lower(), 0))
+		tier_input.min_value = 0
+		tier_input.max_value = 99
+		tier_input.step = 1
+		tier_input.value = current_allocation
+		tier_input.suffix = ""
+		tier_input.prefix = "M"
+		tier_input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		tier_input.value_changed.connect(_on_spec_school_tier_changed.bind(school))
+		_alloc_spinboxes[school.to_lower()] = tier_input
+		col2.add_child(tier_input)
 		var plus_btn2 := Button.new()
 		plus_btn2.text = "+"
 		plus_btn2.pressed.connect(_on_spec_school_alloc_plus.bind(school))
@@ -484,7 +646,28 @@ func _populate_spec_editor() -> void:
 		col2.add_child(minus_btn2)
 		live_swatch_row.add_child(col2)
 	_spec_editor_container.add_child(live_swatch_row)
+	_ratio_input_fields.clear()
+	var ratio_lbl := Label.new()
+	ratio_lbl.text = "Ratio"
+	ratio_lbl.modulate = Color(0.6, 0.6, 0.6)
+	var ratio_input_row := HBoxContainer.new()
+	for school in SCHOOL_NAMES:
+		var input := LineEdit.new()
+		input.name = "RatioInput_" + school
+		var pct_val := int(_spec_ratios.get(school, 0.0) * 100.0)
+		input.text = str(pct_val) if pct_val > 0 else ""
+		input.placeholder_text = "0"
+		input.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		ratio_input_row.add_child(input)
+		_ratio_input_fields[school] = input
+	if not is_archmage_edit:
+		_spec_editor_container.add_child(ratio_lbl)
+		_spec_editor_container.add_child(ratio_input_row)
 	var alloc_btn_row := HBoxContainer.new()
+	var confirm_btn := Button.new()
+	confirm_btn.text = "Confirm Allocation"
+	confirm_btn.pressed.connect(_on_confirm_allocation_pressed)
+	alloc_btn_row.add_child(confirm_btn)
 	var alloc_reset_btn := Button.new()
 	alloc_reset_btn.text = "Reset Allocation"
 	alloc_reset_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -503,6 +686,26 @@ func _populate_spec_editor() -> void:
 	alloc_all_btn2.disabled = not has_spec2
 	alloc_all_btn2.pressed.connect(_on_spec_editor_alloc_all)
 	alloc_btn_row.add_child(alloc_all_btn2)
+
+	var test_mana_input := SpinBox.new()
+	test_mana_input.min_value = 1
+	test_mana_input.max_value = 9999
+	test_mana_input.step = 1
+	test_mana_input.value = 10
+	test_mana_input.custom_minimum_size = Vector2(100, 0)
+	alloc_btn_row.add_child(test_mana_input)
+
+	var test_mana_btn := Button.new()
+	test_mana_btn.text = "Add"
+	test_mana_btn.pressed.connect(func() -> void:
+		var inv_add = get_node_or_null("/root/PlayerInventory")
+		if inv_add == null:
+			return
+		inv_add.add_mana(int(test_mana_input.value))
+		_draft_mana_pool = inv_add.mana_pool
+		_refresh_allocation_display()
+	)
+	alloc_btn_row.add_child(test_mana_btn)
 	_spec_editor_container.add_child(alloc_btn_row)
 	if is_archmage_edit:
 		var archmage_hint := Label.new()
@@ -512,13 +715,6 @@ func _populate_spec_editor() -> void:
 		archmage_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_spec_editor_container.add_child(archmage_hint)
 
-	# Mana summary
-	var mana_lbl := Label.new()
-	mana_lbl.name = "SpecManaLabel"
-	var total: int = inv.mana_pool if inv != null else 0
-	var free_mana: int = inv.unallocated_mana if inv != null else 0
-	mana_lbl.text = "Mana: %d | Free: %d" % [total, free_mana]
-	_spec_editor_container.add_child(mana_lbl)
 	_spec_editor_container.add_child(HSeparator.new())
 
 	# Save and Cancel
@@ -537,40 +733,93 @@ func _populate_spec_editor() -> void:
 
 
 func _refresh_school_labels() -> void:
-	var inv = get_node_or_null("/root/PlayerInventory")
-	if inv == null:
-		return
+	_refresh_allocation_display()
+
+
+func _get_draft_allocated_total() -> int:
+	var allocated: int = 0
+	for value in _draft_allocation.values():
+		allocated += int(value)
+	return allocated
+
+
+func _refresh_allocation_display() -> void:
+	var allocated: int = _get_draft_allocated_total()
+	var free_mana: int = _draft_mana_pool - allocated
 	for school in _spec_school_labels.keys():
-		var lbl: Label = _spec_school_labels[school]
-		if is_instance_valid(lbl):
-			lbl.text = "T%d" % inv.get_school_tier(school)
+		var label_control = _spec_school_labels[school]
+		if label_control is Label and is_instance_valid(label_control):
+			(label_control as Label).text = "%s %d" % [str(school).capitalize(), int(_draft_allocation.get(school, 0))]
+	for school in _alloc_spinboxes.keys():
+		var spinbox = _alloc_spinboxes[school]
+		if spinbox is SpinBox and is_instance_valid(spinbox):
+			(spinbox as SpinBox).set_value_no_signal(float(_draft_allocation.get(school, 0)))
 	var mana_lbl := _spec_editor_container.find_child("SpecManaLabel", true, false)
 	if mana_lbl is Label:
-		mana_lbl.text = "Mana: %d | Free: %d" % [inv.mana_pool, inv.unallocated_mana]
+		mana_lbl.text = "Mana: %d | Free: %d" % [_draft_mana_pool, free_mana]
+
+
+func _on_spec_school_tier_changed(new_val: float, school: String) -> void:
+	var school_key: String = school.to_lower()
+	var total_others := 0
+	for key in _draft_allocation:
+		if key != school_key:
+			total_others += int(_draft_allocation.get(key, 0))
+	var max_for_school: int = maxi(_draft_mana_pool - total_others, 0)
+	_draft_allocation[school_key] = clampi(int(new_val), 0, max_for_school)
+	_refresh_allocation_display()
+	_repopulate_page_section()
 
 
 func _on_spec_school_alloc_plus(school: String) -> void:
-	var inv = get_node_or_null("/root/PlayerInventory")
-	if inv != null:
-		inv.allocate_to_school(school, 1)
-	_refresh_school_labels()
+	var school_key: String = school.to_lower()
+	var current: int = int(_draft_allocation.get(school_key, 0))
+	var free_mana: int = _draft_mana_pool - _get_draft_allocated_total()
+	if free_mana > 0:
+		_draft_allocation[school_key] = current + 1
+		_refresh_allocation_display()
+	_repopulate_page_section()
 
 
 func _on_spec_school_alloc_minus(school: String) -> void:
-	var inv = get_node_or_null("/root/PlayerInventory")
-	if inv != null:
-		inv.deallocate_from_school(school, 1)
-	_refresh_school_labels()
+	var school_key: String = school.to_lower()
+	var current: int = int(_draft_allocation.get(school_key, 0))
+	if current > 0:
+		_draft_allocation[school_key] = current - 1
+		_refresh_allocation_display()
+	_repopulate_page_section()
 
 
 func _on_spec_editor_reset_alloc() -> void:
+	for element in ELEMENTS:
+		_draft_allocation[str(element).to_lower()] = 0
+	_refresh_allocation_display()
+	_repopulate_page_section()
+
+
+func _on_confirm_allocation_pressed() -> void:
 	var inv = get_node_or_null("/root/PlayerInventory")
 	if inv == null:
 		return
-	for school in inv.school_allocation.keys():
-		inv.unallocated_mana += int(inv.school_allocation[school])
-	inv.school_allocation.clear()
-	_refresh_school_labels()
+	var current_schools: Array = inv.school_allocation.keys()
+	for school in current_schools:
+		var current: int = int(inv.school_allocation.get(school, 0))
+		if current > 0:
+			inv.deallocate_from_school(school, current)
+	for school in _draft_allocation:
+		var amount: int = int(_draft_allocation.get(school, 0))
+		if amount > 0:
+			inv.allocate_to_school(school, amount)
+	_draft_allocation = inv.school_allocation.duplicate()
+	_draft_mana_pool = inv.mana_pool
+	var pm = get_node_or_null("/root/PassiveManager")
+	if pm != null and pm.has_method("recalculate"):
+		pm.recalculate()
+	for caster in get_tree().get_nodes_in_group("spell_casters"):
+		if is_instance_valid(caster) and caster.has_method("_recompose_spell"):
+			caster.call("_recompose_spell")
+	_refresh_allocation_display()
+	_repopulate_page_section()
 
 
 func _read_ratio_inputs_normalised() -> Dictionary:
@@ -594,41 +843,35 @@ func _read_ratio_inputs_normalised() -> Dictionary:
 
 
 func _on_spec_editor_alloc_remaining() -> void:
-	var inv = get_node_or_null("/root/PlayerInventory")
-	if inv == null:
-		return
 	var ratios := _read_ratio_inputs_normalised()
 	if ratios.is_empty():
 		return
-	var amount: int = inv.unallocated_mana
+	var amount: int = _draft_mana_pool - _get_draft_allocated_total()
 	if amount <= 0:
 		return
 	for school in ratios.keys():
 		var share: int = int(float(amount) * ratios[school])
 		if share > 0:
-			inv.allocate_to_school(school, share)
-	_refresh_school_labels()
+			_draft_allocation[school] = int(_draft_allocation.get(school, 0)) + share
+	_refresh_allocation_display()
+	_repopulate_page_section()
 
 
 func _on_spec_editor_alloc_all() -> void:
-	var inv = get_node_or_null("/root/PlayerInventory")
-	if inv == null:
-		return
 	var ratios := _read_ratio_inputs_normalised()
 	if ratios.is_empty():
 		return
-	# Reset all allocation back to unallocated first
-	for school in inv.school_allocation.keys():
-		inv.unallocated_mana += int(inv.school_allocation[school])
-	inv.school_allocation.clear()
-	var amount: int = inv.unallocated_mana
+	for element in ELEMENTS:
+		_draft_allocation[str(element).to_lower()] = 0
+	var amount: int = _draft_mana_pool
 	if amount <= 0:
 		return
 	for school in ratios.keys():
 		var share: int = int(float(amount) * ratios[school])
 		if share > 0:
-			inv.allocate_to_school(school, share)
-	_refresh_school_labels()
+			_draft_allocation[school] = int(_draft_allocation.get(school, 0)) + share
+	_refresh_allocation_display()
+	_repopulate_page_section()
 
 
 func _on_save_spec_pressed() -> void:
@@ -727,9 +970,6 @@ func _on_set_active_pressed(index: int) -> void:
 						slot.get("target", "enemy")
 					)
 				idx += 1
-		var sm = get_node_or_null("/root/SummonManager")
-		if sm != null and sm.has_method("spawn_summon") and sm.is_recharged():
-			sm.spawn_summon(page.summon_element)
 	tm.emit_signal("page_flipped", index)
 	_repopulate_page_section()
 
@@ -757,9 +997,11 @@ func _repopulate_page_section() -> void:
 	prev_btn.text = "< Prev"
 	prev_btn.disabled = _spec_editor_page_index <= 0
 	prev_btn.pressed.connect(func() -> void:
-		_spec_editor_page_index -= 1
+		_slots_draft_dirty = false
+		_spec_editor_page_index = (_spec_editor_page_index - 1 + page_count) % page_count
 		_repopulate_page_section()
 	)
+	_nav_prev_btn = prev_btn
 	nav_row.add_child(prev_btn)
 	var page_lbl := Label.new()
 	page_lbl.text = "Page %d of %d" % [_spec_editor_page_index + 1, page_count]
@@ -770,27 +1012,33 @@ func _repopulate_page_section() -> void:
 	next_btn.text = "Next >"
 	next_btn.disabled = _spec_editor_page_index >= page_count - 1
 	next_btn.pressed.connect(func() -> void:
-		_spec_editor_page_index += 1
+		_slots_draft_dirty = false
+		_spec_editor_page_index = (_spec_editor_page_index + 1) % page_count
 		_repopulate_page_section()
 	)
+	_nav_next_btn = next_btn
 	nav_row.add_child(next_btn)
 	var add_btn := Button.new()
 	add_btn.text = "+ Add"
 	add_btn.disabled = page_count >= 8
 	add_btn.pressed.connect(func() -> void:
+		_slots_draft_dirty = false
 		tm.add_page()
 		_spec_editor_page_index = tm.pages.size() - 1
 		_repopulate_page_section()
 	)
+	_nav_add_btn = add_btn
 	nav_row.add_child(add_btn)
 	var remove_btn := Button.new()
 	remove_btn.text = "- Remove"
 	remove_btn.disabled = page_count <= 1
 	remove_btn.pressed.connect(func() -> void:
+		_slots_draft_dirty = false
 		tm.delete_page(_spec_editor_page_index)
 		_spec_editor_page_index = clampi(_spec_editor_page_index, 0, maxi(tm.pages.size() - 1, 0))
 		_repopulate_page_section()
 	)
+	_nav_remove_btn = remove_btn
 	nav_row.add_child(remove_btn)
 	_spec_page_section.add_child(nav_row)
 
@@ -798,17 +1046,34 @@ func _repopulate_page_section() -> void:
 	var page: PageData = tm.get_page(_spec_editor_page_index)
 	if page == null:
 		return
+	if not _slots_draft_dirty:
+		_draft_page_name = page.page_name
+		_draft_slots = []
+		page.ensure_slots(4)
+		for s in page.slots:
+			if s is Dictionary:
+				_draft_slots.append((s as Dictionary).duplicate(true))
+			else:
+				_draft_slots.append({})
+		while _draft_slots.size() < 4:
+			_draft_slots.append({})
 	var name_row := HBoxContainer.new()
 	var name_lbl := Label.new()
 	name_lbl.text = "Name:"
 	name_lbl.custom_minimum_size = Vector2(60, 0)
 	name_row.add_child(name_lbl)
 	var name_edit := LineEdit.new()
-	name_edit.text = page.page_name
+	name_edit.text = _draft_page_name
 	name_edit.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	var captured_index := _spec_editor_page_index
 	name_edit.focus_exited.connect(func() -> void:
-		tm.rename_page(captured_index, name_edit.text)
+		_draft_page_name = name_edit.text
+		_slots_draft_dirty = true
+		_update_nav_and_action_buttons()
+	)
+	name_edit.text_changed.connect(func(_new_text: String) -> void:
+		_draft_page_name = name_edit.text
+		_slots_draft_dirty = true
+		_update_nav_and_action_buttons()
 	)
 	name_row.add_child(name_edit)
 	var override_lbl := Label.new()
@@ -816,63 +1081,87 @@ func _repopulate_page_section() -> void:
 	name_row.add_child(override_lbl)
 	_spec_page_section.add_child(name_row)
 
-	# Spell slot rows (display only — greyed except slot 1)
 	page.ensure_slots(4)
+	var header_row := HBoxContainer.new()
+	var header_labels := ["Element", "Empowerment", "Enchantment", "Delivery"]
+	var slot_header_lbl := Label.new()
+	slot_header_lbl.text = "Slot"
+	slot_header_lbl.custom_minimum_size = Vector2(55, 0)
+	slot_header_lbl.modulate = Color(0.6, 0.6, 0.6)
+	header_row.add_child(slot_header_lbl)
+	for header_text in header_labels:
+		var h := Label.new()
+		h.text = header_text
+		h.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		h.modulate = Color(0.6, 0.6, 0.6)
+		h.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		header_row.add_child(h)
+	_spec_page_section.add_child(header_row)
+
+	# Spell slot rows
 	for i in range(4):
-		var slot: Dictionary = page.slots[i]
+		var slot: Dictionary = _draft_slots[i] if i < _draft_slots.size() else {}
 		var slot_row := HBoxContainer.new()
-		if i > 0:
-			slot_row.modulate = Color(0.55, 0.55, 0.55)
 		var slot_lbl := Label.new()
 		slot_lbl.text = "Slot %d" % (i + 1)
 		slot_lbl.custom_minimum_size = Vector2(55, 0)
 		slot_row.add_child(slot_lbl)
-		var el := _make_option_button(ELEMENTS, str(slot.get("elemental", "fire")))
-		var em := _make_option_button(ELEMENTS, str(slot.get("empowerment", "fire")))
-		var en := _make_option_button(ELEMENTS, str(slot.get("enchantment", "fire")))
-		var dl := _make_option_button(DELIVERIES, str(slot.get("delivery", "bolt")))
-		if i == 0:
-			var ci := _spec_editor_page_index
-			var save_func := func(_idx: int) -> void:
-				var pg: PageData = tm.get_page(ci)
-				if pg == null:
-					return
-				pg.ensure_slots(4)
-				pg.slots[0]["elemental"] = _get_selected_option_value(el)
-				pg.slots[0]["empowerment"] = _get_selected_option_value(em)
-				pg.slots[0]["enchantment"] = _get_selected_option_value(en)
-				pg.slots[0]["delivery"] = _get_selected_option_value(dl)
-				pg.is_overridden = true
-				tm.save_page(ci, pg)
-				if ci == tm.active_page_index:
-					var player := get_tree().get_first_node_in_group("player")
-					if player != null:
-						var casters := player.find_children("*", "Node2D", true, false)
-						var caster_idx := 0
-						for child in casters:
-							if child.has_method("refresh_spell") and caster_idx == 0:
-								child.refresh_spell(
-									pg.slots[0].get("elemental", "fire"),
-									pg.slots[0].get("empowerment", "fire"),
-									pg.slots[0].get("enchantment", "fire"),
-									pg.slots[0].get("delivery", "bolt"),
-									pg.slots[0].get("target", "enemy")
-								)
-								break
-			el.item_selected.connect(save_func)
-			em.item_selected.connect(save_func)
-			en.item_selected.connect(save_func)
-			dl.item_selected.connect(save_func)
-		else:
-			el.disabled = true
-			em.disabled = true
-			en.disabled = true
-			dl.disabled = true
+		var el := _make_school_option_button(ELEMENTS, str(slot.get("elemental", "-")))
+		var em := _make_school_option_button(ELEMENTS, str(slot.get("empowerment", "-")))
+		var en := _make_school_option_button(ELEMENTS, str(slot.get("enchantment", "-")))
+		var dl := _make_option_button(DELIVERIES, str(slot.get("delivery", "-")))
+		var ci_slot := i
+		var draft_func := func(
+			_idx: int,
+			slot_index: int,
+			el_picker: OptionButton,
+			em_picker: OptionButton,
+			en_picker: OptionButton,
+			dl_picker: OptionButton
+		) -> void:
+			while _draft_slots.size() <= slot_index:
+				_draft_slots.append({})
+			_draft_slots[slot_index]["elemental"] = _get_selected_option_value(el_picker)
+			_draft_slots[slot_index]["empowerment"] = _get_selected_option_value(em_picker)
+			_draft_slots[slot_index]["enchantment"] = _get_selected_option_value(en_picker)
+			_draft_slots[slot_index]["delivery"] = _get_selected_option_value(dl_picker)
+			_slots_draft_dirty = true
+			_update_nav_and_action_buttons()
+			_apply_picker_colour(el_picker)
+			_apply_picker_colour(em_picker)
+			_apply_picker_colour(en_picker)
+		el.item_selected.connect(draft_func.bind(ci_slot, el, em, en, dl))
+		em.item_selected.connect(draft_func.bind(ci_slot, el, em, en, dl))
+		en.item_selected.connect(draft_func.bind(ci_slot, el, em, en, dl))
+		dl.item_selected.connect(draft_func.bind(ci_slot, el, em, en, dl))
+		var tooltip_row := slot_row
+		var refresh_tooltip := func(
+			idx: int,
+			changed_picker: OptionButton,
+			el_picker: OptionButton,
+			em_picker: OptionButton,
+			en_picker: OptionButton,
+			dl_picker: OptionButton,
+			tooltip_row_ref: HBoxContainer
+		) -> void:
+			var parts := _build_slot_tooltip_parts(el_picker, em_picker, en_picker, dl_picker, changed_picker, idx)
+			_apply_picker_colour(el_picker)
+			_apply_picker_colour(em_picker)
+			_apply_picker_colour(en_picker)
+			_show_slot_tooltip(tooltip_row_ref, parts)
+		el.item_selected.connect(refresh_tooltip.bind(el, el, em, en, dl, tooltip_row))
+		em.item_selected.connect(refresh_tooltip.bind(em, el, em, en, dl, tooltip_row))
+		en.item_selected.connect(refresh_tooltip.bind(en, el, em, en, dl, tooltip_row))
+		dl.item_selected.connect(refresh_tooltip.bind(dl, el, em, en, dl, tooltip_row))
+		call_deferred("_show_slot_tooltip_deferred", tooltip_row, el, em, en, dl)
 		slot_row.add_child(el)
 		slot_row.add_child(em)
 		slot_row.add_child(en)
 		slot_row.add_child(dl)
 		_spec_page_section.add_child(slot_row)
+		_apply_picker_colour(el)
+		_apply_picker_colour(em)
+		_apply_picker_colour(en)
 
 	# Summon row
 	var s_row := HBoxContainer.new()
@@ -922,20 +1211,27 @@ func _repopulate_page_section() -> void:
 		_spec_page_section.add_child(u_row)
 
 	var action_row := HBoxContainer.new()
-	var save_page_inline_btn := Button.new()
-	save_page_inline_btn.text = "Save Page"
-	save_page_inline_btn.custom_minimum_size = Vector2(0, 48)
-	save_page_inline_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	var spi := _spec_editor_page_index
-	save_page_inline_btn.pressed.connect(func() -> void:
-		var pg: PageData = tm.get_page(spi)
-		if pg == null:
-			return
-		pg.is_overridden = true
-		tm.save_page(spi, pg)
+	var confirm_spells_btn := Button.new()
+	confirm_spells_btn.text = "Confirm Spells"
+	confirm_spells_btn.custom_minimum_size = Vector2(0, 48)
+	confirm_spells_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	confirm_spells_btn.disabled = not _slots_draft_dirty
+	confirm_spells_btn.pressed.connect(func() -> void:
+		_on_confirm_spells_pressed(spi)
+	)
+	action_row.add_child(confirm_spells_btn)
+	_confirm_spells_btn = confirm_spells_btn
+	var cancel_slot_btn := Button.new()
+	cancel_slot_btn.text = "Cancel"
+	cancel_slot_btn.custom_minimum_size = Vector2(0, 48)
+	cancel_slot_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	cancel_slot_btn.pressed.connect(func() -> void:
+		_draft_page_name = ""
+		_slots_draft_dirty = false
 		_repopulate_page_section()
 	)
-	action_row.add_child(save_page_inline_btn)
+	action_row.add_child(cancel_slot_btn)
 	var activate_btn := Button.new()
 	activate_btn.text = "Activate"
 	activate_btn.disabled = (spi == tm.active_page_index)
@@ -943,15 +1239,276 @@ func _repopulate_page_section() -> void:
 	activate_btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	activate_btn.pressed.connect(_on_set_active_pressed.bind(spi))
 	action_row.add_child(activate_btn)
+	_activate_btn = activate_btn
 	_spec_page_section.add_child(action_row)
+	_update_nav_and_action_buttons()
+
+
+func _update_nav_and_action_buttons() -> void:
+	var dirty := _slots_draft_dirty
+	if _nav_prev_btn != null and is_instance_valid(_nav_prev_btn):
+		_nav_prev_btn.disabled = dirty
+	if _nav_next_btn != null and is_instance_valid(_nav_next_btn):
+		_nav_next_btn.disabled = dirty
+	if _nav_add_btn != null and is_instance_valid(_nav_add_btn):
+		var tm2 := get_node_or_null("/root/TomeManager")
+		var pc: int = tm2.pages.size() if tm2 != null else 1
+		_nav_add_btn.disabled = dirty or pc >= 8
+	if _nav_remove_btn != null and is_instance_valid(_nav_remove_btn):
+		var tm3 := get_node_or_null("/root/TomeManager")
+		var pc2: int = tm3.pages.size() if tm3 != null else 1
+		_nav_remove_btn.disabled = dirty or pc2 <= 1
+	if _activate_btn != null and is_instance_valid(_activate_btn):
+		var tm4 := get_node_or_null("/root/TomeManager")
+		var already_active: bool = tm4 != null and _spec_editor_page_index == tm4.active_page_index
+		_activate_btn.disabled = dirty or already_active
+	if _confirm_spells_btn != null and is_instance_valid(_confirm_spells_btn):
+		_confirm_spells_btn.disabled = not dirty
+
+
+func _on_confirm_spells_pressed(page_index: int) -> void:
+	var tm = get_node_or_null("/root/TomeManager")
+	if tm == null:
+		return
+	var pg: PageData = tm.get_page(page_index)
+	if pg == null:
+		return
+	pg.ensure_slots(4)
+	for si in range(mini(_draft_slots.size(), 4)):
+		var ds: Dictionary = _draft_slots[si]
+		pg.slots[si]["elemental"] = ds.get("elemental", "")
+		pg.slots[si]["empowerment"] = ds.get("empowerment", "")
+		pg.slots[si]["enchantment"] = ds.get("enchantment", "")
+		pg.slots[si]["delivery"] = ds.get("delivery", "bolt")
+	pg.is_overridden = true
+	tm.save_page(page_index, pg)
+	tm.rename_page(page_index, _draft_page_name)
+	_slots_draft_dirty = false
+	if page_index == tm.active_page_index:
+		var player := get_tree().get_first_node_in_group("player")
+		if player != null and player.has_method("_refresh_all_casters"):
+			player.call("_refresh_all_casters")
+	_update_nav_and_action_buttons()
 
 
 func _make_option_button(options: Array, selected_value: String) -> OptionButton:
 	var picker := OptionButton.new()
+	picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	picker.add_item("-")
 	for option in options:
 		picker.add_item(str(option))
 	_select_option_value(picker, selected_value)
 	return picker
+
+
+func _make_school_option_button(options: Array, selected_value: String) -> OptionButton:
+	var picker := OptionButton.new()
+	picker.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	picker.add_item("-")
+	var inv = get_node_or_null("/root/PlayerInventory")
+	for option in options:
+		var school := str(option)
+		if inv != null and int(inv.school_allocation.get(school.to_lower(), 0)) == 0:
+			continue
+		picker.add_item(school)
+	_select_option_value(picker, selected_value)
+	return picker
+
+
+func _apply_picker_colour(picker: OptionButton) -> void:
+	var val := picker.get_item_text(picker.selected).to_lower()
+	var colour: Color = ELEMENT_COLOURS_NODE.get(val, Color(0.85, 0.85, 0.85))
+	picker.add_theme_color_override("font_color", colour)
+
+
+func _build_description_bbcode(
+	effect_name: String,
+	raw_description: String,
+	tier: int,
+	row: Dictionary
+) -> String:
+	var title := "[b]%s M%d[/b]\n" % [effect_name.capitalize().replace("_", " "), tier]
+	var desc := raw_description
+	for vi in range(1, 6):
+		var placeholder := "[value%d]" % vi
+		if not desc.contains(placeholder):
+			continue
+		var raw_key := "value%d_raw" % vi
+		var float_key := "value%d" % vi
+		var scale_key := "scale_value%d" % vi
+		var raw_str: String = str(row.get(raw_key, "")).strip_edges()
+
+		if raw_str.is_valid_float():
+			var base_val := float(raw_str)
+			var scale_val := 0.0
+			var raw_scale = row.get(scale_key, "")
+			if str(raw_scale).is_valid_float():
+				scale_val = float(str(raw_scale))
+			var computed: float = base_val + scale_val * float(tier)
+			var formatted: String
+			if abs(computed - float(roundi(computed))) < 0.001:
+				formatted = str(roundi(computed))
+			else:
+				formatted = "%.2f" % computed
+			desc = desc.replace(placeholder, "[b]%s[/b]" % formatted)
+		elif raw_str != "":
+			var colour := str(ELEMENT_COLOURS.get(raw_str.to_lower(), ""))
+			if colour != "":
+				desc = desc.replace(placeholder, "[color=%s]%s[/color]" % [colour, raw_str.capitalize()])
+			else:
+				desc = desc.replace(placeholder, raw_str)
+		else:
+			desc = desc.replace(placeholder, "")
+
+	for vi in range(1, 6):
+		var scale_placeholder := "[ScaleValue%d]" % vi
+		if desc.contains(scale_placeholder):
+			var scale_key_raw := "scale_value%d" % vi
+			var raw_scale_value = row.get(scale_key_raw, "")
+			var scale_str := str(raw_scale_value) if str(raw_scale_value) != "" else "0"
+			desc = desc.replace(scale_placeholder, "[b]%s[/b]" % scale_str)
+
+	for element in ELEMENT_COLOURS:
+		var colour := str(ELEMENT_COLOURS[element])
+		var forms := [
+			element.to_lower(),
+			element.capitalize(),
+			element.to_upper()
+		]
+		for form in forms:
+			if desc.contains(form):
+				desc = desc.replace(form, "[color=%s]%s[/color]" % [colour, form])
+
+	return "[font_size=15]" + title + desc + "[/font_size]"
+
+
+func _build_delivery_bbcode(delivery: String) -> String:
+	var key := delivery.to_lower()
+	var text := str(DELIVERY_DESCRIPTIONS.get(key, ""))
+	if text == "":
+		return ""
+	return "[b]%s[/b]\n%s" % [delivery.capitalize(), text]
+
+
+func _show_slot_tooltip(slot_row: HBoxContainer, parts: Array[String]) -> void:
+	var parent := slot_row.get_parent()
+	if parent == null:
+		return
+	var slot_idx := slot_row.get_index()
+	var next := parent.get_child(slot_idx + 1) if slot_idx + 1 < parent.get_child_count() else null
+
+	var tooltip_row: HBoxContainer
+	if next != null and next is HBoxContainer and next.get_meta("slot_tooltip_row", false):
+		tooltip_row = next as HBoxContainer
+		for i in range(4):
+			var rtl_idx := i + 1
+			if rtl_idx < tooltip_row.get_child_count():
+				var rtl := tooltip_row.get_child(rtl_idx)
+				if rtl is RichTextLabel:
+					(rtl as RichTextLabel).text = parts[i] if i < parts.size() else ""
+		return
+
+	tooltip_row = HBoxContainer.new()
+	tooltip_row.set_meta("slot_tooltip_row", true)
+	tooltip_row.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	parent.add_child(tooltip_row)
+	parent.move_child(tooltip_row, slot_idx + 1)
+
+	var spacer := Label.new()
+	spacer.custom_minimum_size = Vector2(55, 0)
+	tooltip_row.add_child(spacer)
+
+	for i in range(4):
+		var rtl := RichTextLabel.new()
+		rtl.bbcode_enabled = true
+		rtl.fit_content = true
+		rtl.scroll_active = false
+		rtl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		rtl.add_theme_font_size_override("normal_font_size", 15)
+		rtl.modulate = Color(0.85, 0.85, 0.85, 1.0)
+		var text: String = parts[i] if i < parts.size() else ""
+		rtl.text = text
+		tooltip_row.add_child(rtl)
+
+
+func _build_slot_tooltip_parts(
+	el: OptionButton,
+	em: OptionButton,
+	en: OptionButton,
+	dl: OptionButton,
+	override_picker: OptionButton = null,
+	override_idx: int = -1
+) -> Array[String]:
+	var get_val := func(picker: OptionButton) -> String:
+		if picker == override_picker and override_idx >= 0:
+			return picker.get_item_text(override_idx).to_lower()
+		return _get_selected_option_value(picker)
+
+	var composer = get_node_or_null("/root/SpellComposer")
+	var inv = get_node_or_null("/root/PlayerInventory")
+	var el_val: String = get_val.call(el)
+	var em_val: String = get_val.call(em)
+	var en_val: String = get_val.call(en)
+	var dl_val: String = get_val.call(dl)
+	var el_tier := 0
+	var em_tier := 0
+	var en_tier := 0
+	if inv != null and inv.has_method("get_school_tier"):
+		el_tier = int(inv.get_school_tier(el_val))
+		em_tier = int(inv.get_school_tier(em_val))
+		en_tier = int(inv.get_school_tier(en_val))
+
+	var target_filter := "self" if dl_val == "utility" else "enemy"
+	var parts: Array[String] = ["", "", "", ""]
+	if composer != null and composer.has_method("get_all_rows"):
+		var row_data = composer.call("get_all_rows")
+		if row_data is Array:
+			var rows := row_data as Array
+			parts[0] = _find_effect_bbcode(rows, el_val, "Elemental", el_tier, target_filter)
+			parts[1] = _find_effect_bbcode(rows, em_val, "Empowerment", em_tier, target_filter)
+			parts[2] = _find_effect_bbcode(rows, en_val, "Enchantment", en_tier, target_filter)
+
+	parts[3] = _build_delivery_bbcode(dl_val)
+	return parts
+
+
+func _find_effect_bbcode(
+	rows: Array,
+	element_value: String,
+	position: String,
+	tier: int,
+	target_filter: String
+) -> String:
+	for row in rows:
+		if not row is Dictionary:
+			continue
+		var row_dict := row as Dictionary
+		if str(row_dict.get("element", "")).to_lower() != element_value:
+			continue
+		if str(row_dict.get("position", "")) != position:
+			continue
+		if str(row_dict.get("target", "")).to_lower() != target_filter:
+			continue
+		var display := str(row_dict.get("display_text", "")).strip_edges()
+		var desc_text := display if display != "" else str(row_dict.get("description", "")).strip_edges()
+		return _build_description_bbcode(
+			str(row_dict.get("effect_name", "")),
+			desc_text,
+			tier,
+			row_dict
+		)
+	return ""
+
+
+func _show_slot_tooltip_deferred(
+	slot_row: HBoxContainer,
+	el: OptionButton,
+	em: OptionButton,
+	en: OptionButton,
+	dl: OptionButton
+) -> void:
+	var parts := _build_slot_tooltip_parts(el, em, en, dl)
+	_show_slot_tooltip(slot_row, parts)
 
 
 func _select_option_value(picker: OptionButton, value: String) -> void:
@@ -967,4 +1524,7 @@ func _select_option_value(picker: OptionButton, value: String) -> void:
 func _get_selected_option_value(picker: OptionButton) -> String:
 	if picker == null or picker.item_count == 0:
 		return ""
-	return picker.get_item_text(picker.selected).to_lower()
+	var val := picker.get_item_text(picker.selected)
+	if val == "-":
+		return ""
+	return val.to_lower()

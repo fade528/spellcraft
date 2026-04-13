@@ -9,8 +9,8 @@ var equipment: Dictionary = {
 	"boots": null,
 	"weapon": null
 }
-var mana_pool: int = 0
-var school_allocation: Dictionary = {}
+var mana_pool: int = 1
+var school_allocation: Dictionary = {"fire": 1}
 var unallocated_mana: int = 0
 
 
@@ -87,6 +87,6 @@ func get_school_multiplier(school: String) -> float:
 func reset_run() -> void:
 	element_counts.clear()
 	active_passives.clear()
-	mana_pool = 0
-	school_allocation.clear()
+	mana_pool = 1
+	school_allocation = {"fire": 1}
 	unallocated_mana = 0

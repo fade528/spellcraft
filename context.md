@@ -44,21 +44,25 @@ Renderer:      Mobile
 
 ## Current Status
 
-**Session 2.43 complete:** CraftingUI unified spec editor. Menu button. 
-Android export CSV fix.
+**Session 2.45 complete:** All 7 delivery types implemented and working.
 
-**What was delivered in 2.43:**
-- CraftingUI: Removed separate Tome view — single unified spec+page editor screen
-- Inline page navigator (prev/next, add/remove) inside spec editor
-- Slot 1 live-editable with auto-save on change, live SpellCaster refresh
-- Summon and Ult 1/2 live pickers with save on change
-- Mana & Ratios section: ratio inputs for named specs, hidden for Archmage
-- % allocation reads ratio inputs directly — works for non-active specs
-- Menu button: leftmost action button opens/closes CraftingUI on desktop + Android
-- Android: CSV files now correctly packed via include_filter="data/*" in export preset
-- Bug fix: % allocation buttons incorrectly greyed when editing non-active named spec
+**What was delivered in 2.45:**
+- bolt, burst, missile: projectile deliveries under res://scenes/deliveries/
+- beam: instant vertical line, 40px wide, 1s visual fade
+- blast (aoe): 300px radial burst, expanding circle visual
+- cleave: 600px frontal cone, shotgun-style sector visual
+- orbs: 3 persistent orbiting projectiles at 85px radius, 1 hit/cycle/orb
+- SummonManager.initialize() wired from SpellCaster._ready()
+- Summon position await fix — spawns at player position correctly
+- Volume sliders (BGM/SFX) in CraftingUI, persisted to user://settings.cfg
+- Beam hitbox widened to 40px
 
-**Next:** Session 2.44 — Partner playtesting feedback integration
+**Known outstanding:**
+- Summon requires spell_elements.csv A0007 Status set to "active" to appear
+- Utility delivery type = self-target (same as target=self spells) — not yet implemented
+- Chaser enemy still lives at res://scenes/enemy.tscn — to be rebuilt as Chaser2
+
+**Next:** Session 2.46 — Partner playtesting of all delivery types, tuning pass
 
 ---
 
@@ -220,25 +224,26 @@ enum GameState {
 
 ## Key Systems Summary
 
-### Spell System (Session 2.1 — complete)
 
-Each spell is composed from 3 element slots + delivery:
 
-| Slot | Purpose |
-|---|---|
-| Elemental | Core identity, sets inherent dmgmult |
-| Empowerment | Damage amplification (DoT, chains, execute) |
-| Enchantment | Functions and gimmicks (AoE, pushback, status) |
-
-Delivery types: Bolt, Burst, Beam, Blast, Cleave, Missile, Wall, Utility
+### Life System (Session 1.4 — complete)
 
 ```gdscript
-SpellComposer.compose_spell(elemental, empowerment, enchantment, delivery, target) -> SpellData
-SpellComposer.is_stop_cast(element) -> bool
-SpellComposer.get_weakness_multiplier(attacker, defender) -> float
+get_node_or_null("/root/ProgressionManager").take_damage(amount)
+get_node_or_null("/root/ProgressionManager").heal(amount)
+get_node_or_null("/root/ProgressionManager").reset_run()
 ```
 
-Holy/Dark = stop-cast elements (fire on movement stop, not auto-cast).
+### Spell System (Session 2.1 — complete)
+
+Delivery scenes:
+res://scenes/deliveries/bolt.tscn      — Area2D, layer 5, mask 4
+res://scenes/deliveries/burst.tscn     — Area2D, layer 5, mask 4
+res://scenes/deliveries/missile.tscn   — Area2D, layer 5, mask 4
+res://scenes/deliveries/beam.tscn      — Area2D, layer 5, no mask (manual scan)
+res://scenes/deliveries/aoe.tscn       — Node2D (no collision, manual scan)
+res://scenes/deliveries/cleave.tscn    — Node2D (no collision, manual scan)
+res://scenes/deliveries/orbs.tscn      — Area2D, layer 5, mask 4, monitorable=false
 
 ### Mana and School System (Sessions 2.41 / 2.42 — complete)
 
@@ -329,31 +334,6 @@ CraftingUI.close_ui() -> void
 
 ```
 
-### CraftingUI (Session 2.42 — complete)
-
-Single Spec tab. All UI built in code, no .tscn changes. Spec list → Spec editor → Tome view → Page editor flow.
-
-**Spec slots:** Archmage (always top) | Built-in 1-5 (Activate/Edit/Reset Spec) | Custom 6-10 (Activate/Edit/Delete) | Resume
-**Spec editor:** Back | Go to Tome | Reset Spec (built-ins only) | Name (read-only for built-ins) | Slot pickers | Summon/Ult pickers | Ratio % inputs | Mana Allocation (+/- per school, Reset Allocation, Alloc Remaining %, Alloc All %)
-**Tome view:** Per-spec page list with override indicators, summary row, Craft/Activate/Rename/Delete, mana chart with +/- at bottom.
-
-**Next session (2.43):** Embed tome inline in spec editor. Remove separate Tome view. Prev/next page navigator inside spec editor.
-
-### CraftingUI (Session 2.43 — complete)
-
-Single unified screen. No separate Tome view.
-
-**Flow:** Spec list → Spec editor (Name + PAGES inline + Mana & Ratios) 
-→ Back to spec list
-
-**Page section:** Prev/Next navigator, page name LineEdit (saves on 
-focus_exited), Slot 1 live pickers (save on change), Summon live picker, 
-Ult 1/2 live pickers, Save Page button, Activate button.
-
-**Mana & Ratios:** School name labels (always shown), ratio % inputs 
-(named specs only), T0/+/- allocation controls, Reset/Alloc Remaining 
-%/Alloc All %, Mana summary. Archmage shows hint label instead of % buttons.
-
 ### Summon System (Session 2.3 — complete)
 
 ```gdscript
@@ -383,13 +363,48 @@ ControlStrip.update_lives(count: int) -> void
 ControlStrip.update_mana_display() -> void   # called every frame from _process
 ```
 
-### Life System (Session 1.4 — complete)
+### CraftingUI (Session 2.42 — complete)
 
-```gdscript
-get_node_or_null("/root/ProgressionManager").take_damage(amount)
-get_node_or_null("/root/ProgressionManager").heal(amount)
-get_node_or_null("/root/ProgressionManager").reset_run()
-```
+Single Spec tab. All UI built in code, no .tscn changes. Spec list → Spec editor → Tome view → Page editor flow.
+
+**Spec slots:** Archmage (always top) | Built-in 1-5 (Activate/Edit/Reset Spec) | Custom 6-10 (Activate/Edit/Delete) | Resume
+**Spec editor:** Back | Go to Tome | Reset Spec (built-ins only) | Name (read-only for built-ins) | Slot pickers | Summon/Ult pickers | Ratio % inputs | Mana Allocation (+/- per school, Reset Allocation, Alloc Remaining %, Alloc All %)
+**Tome view:** Per-spec page list with override indicators, summary row, Craft/Activate/Rename/Delete, mana chart with +/- at bottom.
+
+**Next session (2.43):** Embed tome inline in spec editor. Remove separate Tome view. Prev/next page navigator inside spec editor.
+
+### CraftingUI (Session 2.43 — complete)
+
+Single unified screen. No separate Tome view.
+
+**Flow:** Spec list → Spec editor (Name + PAGES inline + Mana & Ratios) 
+→ Back to spec list
+
+**Page section:** Prev/Next navigator, page name LineEdit (saves on 
+focus_exited), Slot 1 live pickers (save on change), Summon live picker, 
+Ult 1/2 live pickers, Save Page button, Activate button.
+
+**Mana & Ratios:** School name labels (always shown), ratio % inputs 
+(named specs only), T0/+/- allocation controls, Reset/Alloc Remaining 
+%/Alloc All %, Mana summary. Archmage shows hint label instead of % buttons.
+
+SPELL EFFECTS (Session 2.46b):
+  All 7 delivery scripts confirmed to copy on_hit_effects in setup_from_spell()
+  Confirmed working on-hit: burndot, explosion, chilled, brittle, stagger,
+    chain 1, tidal, splash, corruption, execute, radiance (blind)
+  Confirmed working passives: stoneskin, chillaura, iceshield, flashcast,
+    surge, consecration, bubbleaura
+  Stop-cast mechanic confirmed: holy and dark fire on move→still transition
+
+DELIVERY SYSTEM — add note:
+  All delivery scripts require:
+    var on_hit_effects: Array[Dictionary] = []
+    on_hit_effects = spell.on_hit_effects.duplicate(true) in setup_from_spell()
+
+PROGRESSION MANAGER — add:
+  heal(amount: float) added — clamps to max_hp, emits hp_changed signal
+
+
 
 ### Item System (Phase 4 — stub only)
 5 equipment slots: Hat, Robe, Gloves, Boots, Weapon. Slots stubbed in PlayerInventory. Drop from bosses only.
@@ -460,6 +475,14 @@ res://
 │       └── spell_projectile.gd
 ├── resources/
 └── assets/
+│   └── deliveries/
+│       ├── bolt.gd
+│       ├── burst.gd
+│       ├── missile.gd
+│       ├── beam.gd
+│       ├── aoe.gd
+│       ├── cleave.gd
+│       └── orbs.gd
 ```
 
 ---
@@ -487,3 +510,10 @@ res://
 - `session_plan.md` — all session prompts and status tracker
 - `feedback.md` — partner playtesting notes
 
+## KNOWN ISSUES
+- Chaser (enemy.gd) has no debuff surface — retire in favour of Chaser2
+- bolt, cleave, aoe, missile, orbs on_hit_effects fix needs verification
+- rootedpower and stagger routing incorrectly into on_hit_effects
+- SpellComposer register_passive() is dead path for PassiveManager
+- Milestone bonuses not yet implemented
+- get_school_multiplier() uses 0.05/tier — design doc says 0.02/count, needs alignment

@@ -2,12 +2,14 @@
 
 importer="csv_translation"
 type="Translation"
-uid="uid://chom0ftxfiw2b"
-valid=false
+uid="uid://73dnavir822y"
 
 [deps]
 
+files=["res://data/deliveries.behavior.translation", "res://data/deliveries.unit interaction.translation", "res://data/deliveries.range.translation", "res://data/deliveries.speed.translation", "res://data/deliveries.cd.translation", "res://data/deliveries.single target dps.translation", "res://data/deliveries.projectile.translation", "res://data/deliveries.pattern.translation", "res://data/deliveries.target.translation"]
+
 source_file="res://data/deliveries.csv"
+dest_files=["res://data/deliveries.behavior.translation", "res://data/deliveries.unit interaction.translation", "res://data/deliveries.range.translation", "res://data/deliveries.speed.translation", "res://data/deliveries.cd.translation", "res://data/deliveries.single target dps.translation", "res://data/deliveries.projectile.translation", "res://data/deliveries.pattern.translation", "res://data/deliveries.target.translation"]
 
 [params]
 

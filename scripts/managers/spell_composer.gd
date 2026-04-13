@@ -28,6 +28,7 @@ const COL_SCALE_VALUE5 := 19
 const COL_SCALE_DMGMULT := 20
 # col 21 = Scale Description (ignored)
 const COL_STATUS := 22
+const COL_DISPLAY_TEXT := 23
 
 
 func _ready() -> void:
@@ -50,7 +51,7 @@ func _parse_spell_elements_csv() -> void:
 		var columns := file.get_csv_line(",")
 		if columns.is_empty():
 			continue
-		while columns.size() < 23:
+		while columns.size() < 24:
 			columns.append("")
 
 		var row := {
@@ -64,10 +65,17 @@ func _parse_spell_elements_csv() -> void:
 			"value3": _to_float(columns[COL_VALUE3]),
 			"value4": _to_float(columns[COL_VALUE4]),
 			"value5": _to_float(columns[COL_VALUE5]),
+			"value1_raw": columns[COL_VALUE1].strip_edges(),
+			"value2_raw": columns[COL_VALUE2].strip_edges(),
+			"value3_raw": columns[COL_VALUE3].strip_edges(),
+			"value4_raw": columns[COL_VALUE4].strip_edges(),
+			"value5_raw": columns[COL_VALUE5].strip_edges(),
 			"cd": _to_float(columns[COL_CD]),
 			"cd_type": columns[COL_CD_TYPE].strip_edges(),
 			"dmgmult": _to_float(columns[COL_DMGMULT]),
 			"budget": _to_float(columns[COL_BUDGET]),
+			"description": columns[COL_DESCRIPTION].strip_edges(),
+			"display_text": columns[COL_DISPLAY_TEXT].strip_edges(),
 			"scale_value1": _to_float(columns[COL_SCALE_VALUE1]),
 			"scale_value2": _to_float(columns[COL_SCALE_VALUE2]),
 			"scale_value3": _to_float(columns[COL_SCALE_VALUE3]),
@@ -77,7 +85,8 @@ func _parse_spell_elements_csv() -> void:
 		}
 
 		var status := columns[COL_STATUS].strip_edges().to_lower()
-		if status != "active":
+		var is_summon_row := str(row["position"]).to_lower() == "summon" and str(row["target"]).to_lower() == "summon"
+		if status != "active" and not is_summon_row:
 			continue
 
 		var spell_id := str(row["spell_id"])
@@ -200,6 +209,10 @@ func get_summon_data(element: String) -> Dictionary:
 	if _index.has(key):
 		return (_rows[_index[key]] as Dictionary).duplicate(true)
 	return {}
+
+
+func get_all_rows() -> Array:
+	return _rows.values()
 
 
 func _get_row_by_key(key: String) -> Dictionary:

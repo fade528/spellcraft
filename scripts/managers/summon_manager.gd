@@ -16,7 +16,7 @@ var _current_element: String = ""
 var _summon_hp: float = 30.0
 var _max_hp: float = 30.0
 var _attack_spell = null
-var _attack_cooldown: float = 3.0
+var _attack_cooldown: float = 2.5  # summon base attack rate, independent of player spell CD
 var _attack_timer_elapsed: float = 0.0
 var _trail_positions: Array[Vector2] = []
 var _summon_invincible: bool = false
@@ -39,6 +39,11 @@ func spawn_summon(element: String) -> void:
 	_summon_data = spell_composer.get_summon_data(element)
 	if _summon_data.is_empty():
 		return
+	var attack_cd = _summon_data.get("attack_cd", null)
+	if attack_cd != null and str(attack_cd).is_valid_float():
+		_attack_cooldown = maxf(float(str(attack_cd)), 0.5)
+	else:
+		_attack_cooldown = 2.5
 
 	var summon_root: Node2D = Node2D.new()
 	var placeholder: ColorRect = ColorRect.new()
@@ -63,13 +68,13 @@ func spawn_summon(element: String) -> void:
 	var current_scene: Node = get_tree().current_scene
 	if current_scene != null:
 		current_scene.add_child.call_deferred(summon_root)
+		await get_tree().process_frame
+		if not is_instance_valid(summon_root):
+			return
 		if _player_ref != null and is_instance_valid(_player_ref):
 			summon_root.global_position = _player_ref.global_position + Vector2(30, 0)
 		else:
-			# _player_ref not set yet — retry position after one frame
-			await get_tree().process_frame
-			if _player_ref != null and is_instance_valid(_player_ref) and is_instance_valid(summon_root):
-				summon_root.global_position = _player_ref.global_position + Vector2(30, 0)
+			summon_root.global_position = Vector2(540, 1400)
 		_current_element = element
 		_attack_timer_elapsed = 0.0
 		_summon_invincible = false
@@ -89,16 +94,21 @@ func spawn_summon(element: String) -> void:
 
 func set_attack_spell(spell) -> void:
 	_attack_spell = spell
-	if spell != null and "cooldown" in spell:
-		_attack_cooldown = float(spell.cooldown)
+	# Attack cooldown is NOT taken from spell data - that is the player's
+	# spell CD. Summon attack rate is fixed at _attack_cooldown default.
+	# Future: read from summon CSV row if an attack_cd field is added.
 
 
 func _on_summon_hit(area: Area2D) -> void:
 	if _summon_invincible:
 		return
-	take_summon_damage(5.0)
 	_summon_invincible = true
-	_recharge_timer = 1.0
+	take_summon_damage(5.0)
+	# take_summon_damage calls despawn_summon() via call_deferred when HP <= 0,
+	# which sets _recharge_timer from _summon_data["cd"]. Do NOT set
+	# _recharge_timer here, that would override the correct CD value.
+	# _summon_invincible is reset by the stagger timer in _process after death,
+	# or is irrelevant once the summon is gone.
 
 
 func _process(delta: float) -> void:
@@ -112,8 +122,9 @@ func _process(delta: float) -> void:
 			if _recharge_timer <= 0.0:
 				_recharge_timer = 0.0
 				_recharge_display_timer = 0.0
-				if _current_element != "":
-					spawn_summon(_current_element)
+				var summon_element := _get_active_page_summon_element()
+				if summon_element != "":
+					spawn_summon(summon_element)
 					summon_recharge_tick.emit(0.0)
 
 	if active_summon != null and is_instance_valid(active_summon):
@@ -220,3 +231,16 @@ func get_recharge_remaining() -> float:
 
 func get_summon_stat(key: String) -> Variant:
 	return _summon_data.get(key, null)
+
+
+func _get_active_page_summon_element() -> String:
+	var tm = get_node_or_null("/root/TomeManager")
+	if tm == null or not tm.has_method("get_active_page"):
+		return _current_element
+	var active_page = tm.get_active_page()
+	if active_page == null:
+		return _current_element
+	var summon_element := str(active_page.summon_element)
+	if summon_element == "none":
+		return ""
+	return summon_element

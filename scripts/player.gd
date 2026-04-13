@@ -24,6 +24,7 @@ var clamp_margin := Vector2(48.0, 48.0)
 var facing_rotation := 0.0
 var is_invincible := false
 var iframe_tween: Tween
+var speed_bonus: float = 0.0
 
 
 func _ready() -> void:
@@ -46,6 +47,57 @@ func _ready() -> void:
 				summon_element = String(active_page.summon_element)
 		sm.spawn_summon(summon_element)
 
+	var slot1_caster: Node = null
+	for child in get_children():
+		if child.has_method("refresh_spell"):
+			slot1_caster = child
+			break
+
+	var caster_script := load("res://scripts/spell_caster.gd")
+	for slot_idx in range(1, 4):
+		var caster := Node2D.new()
+		caster.set_script(caster_script)
+		caster.name = "SpellCaster%d" % (slot_idx + 1)
+		add_child(caster)
+		caster.call("set_stagger_delay", float(slot_idx) * 1.0)
+
+	var tm3 = get_node_or_null("/root/TomeManager")
+	if tm3 != null and tm3.has_signal("page_changed"):
+		if not tm3.page_changed.is_connected(_refresh_all_casters):
+			tm3.page_changed.connect(_refresh_all_casters)
+
+	call_deferred("_refresh_all_casters")
+
+
+func _refresh_all_casters() -> void:
+	var tm = get_node_or_null("/root/TomeManager")
+	if tm == null:
+		return
+	var page = tm.get_active_page()
+	if page == null:
+		return
+	page.ensure_slots(4)
+
+	var slot_idx := 0
+	for child in get_children():
+		if not child.has_method("refresh_spell"):
+			continue
+		if slot_idx >= 4:
+			break
+		var slot: Dictionary = {}
+		if slot_idx < page.slots.size():
+			var raw = page.slots[slot_idx]
+			if raw is Dictionary:
+				slot = raw
+		child.refresh_spell(
+			str(slot.get("elemental", "fire")),
+			str(slot.get("empowerment", "fire")),
+			str(slot.get("enchantment", "fire")),
+			str(slot.get("delivery", "bolt")),
+			str(slot.get("target", "enemy"))
+		)
+		slot_idx += 1
+
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
@@ -55,8 +107,13 @@ func _input(event: InputEvent) -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	velocity = move_input * move_speed
+	var effective_speed := move_speed * (1.0 + speed_bonus)
+	velocity = move_input * effective_speed
 	move_and_slide()
+	var currently_moving := move_input.length() > 0.05
+	for child in get_children():
+		if child.has_method("set_moving"):
+			child.set_moving(currently_moving)
 	var vp := get_viewport().get_visible_rect().size
 	position = position.clamp(
 		clamp_margin,
@@ -137,14 +194,20 @@ func _set_touchpad_visible(is_visible: bool) -> void:
 	touchpad_knob.visible = is_visible
 
 
-func take_damage(amount: float) -> void:
+func apply_speed_bonus(bonus: float) -> void:
+	speed_bonus = bonus
+
+
+func take_damage(amount: float, element: String = "") -> void:
 	if is_invincible:
 		return
 
+	var pm = get_node_or_null("/root/PassiveManager")
+	var effective: float = pm.get_effective_damage(amount, element) if pm != null else amount
 	_start_iframes()
 	var progression_manager := _get_progression_manager()
 	if progression_manager != null:
-		progression_manager.take_damage(amount)
+		progression_manager.take_damage(effective)
 
 
 func respawn() -> void:

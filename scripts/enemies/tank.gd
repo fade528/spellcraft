@@ -13,6 +13,7 @@ signal died
 
 const DESPAWN_Y := 1980.0
 const DROP_CHANCE: float = 0.20
+const KNOCKBACK_DURATION: float = 0.3
 
 var player_ref: Node2D
 var current_hp: float
@@ -40,6 +41,7 @@ var _corruption_ticks_remaining: int = 0
 var _corruption_interval: float = 1.0
 var _is_chilled: bool = false
 var _chill_timer: Timer = null
+var _knockback_timer: float = 0.0
 
 
 func _ready() -> void:
@@ -93,22 +95,25 @@ func _on_contact_area_entered(area: Area2D) -> void:
 			pm.take_damage(contact_damage)
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
 	if _is_staggered:
 		return
 
 	if player_ref == null or not is_instance_valid(player_ref):
 		player_ref = get_tree().get_first_node_in_group("player") as Node2D
 
-	var move_direction := Vector2.DOWN
-	if _is_blinded:
-		move_direction = _blind_direction
-	elif player_ref != null:
-		var to_player := player_ref.global_position - global_position
-		if to_player.length() <= chase_distance:
-			move_direction = to_player.normalized()
+	if _knockback_timer > 0.0:
+		_knockback_timer -= delta
+	else:
+		var move_direction := Vector2.DOWN
+		if _is_blinded:
+			move_direction = _blind_direction
+		elif player_ref != null:
+			var to_player := player_ref.global_position - global_position
+			if to_player.length() <= chase_distance:
+				move_direction = to_player.normalized()
 
-	velocity = move_direction * move_speed
+		velocity = move_direction * move_speed
 	move_and_slide()
 
 	if global_position.y > DESPAWN_Y:
@@ -125,9 +130,10 @@ func _process(delta: float) -> void:
 		_blind_direction = Vector2.from_angle(randf_range(0.0, TAU))
 
 
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, attacker_element: String = "") -> void:
+	var incoming_mult := get_incoming_multiplier(attacker_element)
 	var is_crit := randf() < crit_chance
-	var final_damage := amount
+	var final_damage := amount * incoming_mult
 
 	if is_crit:
 		final_damage *= crit_multiplier
@@ -294,6 +300,7 @@ func get_element() -> String:
 
 
 func apply_slow(amount: float, duration: float) -> void:
+	_is_chilled = true
 	if not _is_slowed:
 		_original_speed = move_speed
 		move_speed = max(_original_speed * (1.0 - amount), 10.0)
@@ -311,7 +318,8 @@ func apply_slow(amount: float, duration: float) -> void:
 
 
 func apply_stagger(chance: float, duration: float) -> void:
-	if randf() >= chance:
+	var triggered := randf() < chance
+	if not triggered:
 		return
 
 	velocity = Vector2.ZERO
@@ -331,6 +339,7 @@ func apply_brittle(freeze_duration: float, dmg_mult: float) -> void:
 
 
 func apply_chain(bounce_count: int) -> void:
+	var nearby_enemies_found := 0
 	if bounce_count <= 0:
 		return
 
@@ -345,6 +354,8 @@ func apply_chain(bounce_count: int) -> void:
 				"enemy": enemy,
 				"distance": distance
 			})
+
+	nearby_enemies_found = nearby_enemies.size()
 
 	nearby_enemies.sort_custom(func(a: Dictionary, b: Dictionary) -> bool:
 		return a["distance"] < b["distance"]
@@ -364,7 +375,8 @@ func apply_pushback(distance: float) -> void:
 		if direction == Vector2.ZERO:
 			direction = Vector2.UP
 
-	velocity = direction * (distance / 0.3)
+	velocity = direction * distance
+	_knockback_timer = KNOCKBACK_DURATION
 
 
 func apply_blind(duration: float) -> void:

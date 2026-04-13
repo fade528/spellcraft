@@ -333,3 +333,126 @@ and SpellProjectile.
 **Notes:** _to_float() returns "" for blank cells (intentional for value1-5
 which can hold strings like "ice"). Scale fields arriving as "" are safely
 handled by _scaled() Variant coercion — no cast errors.
+
+### Delivery System (Session 2.45)
+**Date:** 2026-04-12
+**Decision:** All 7 delivery types implemented as separate scenes under
+res://scenes/deliveries/ with scripts under res://scripts/deliveries/.
+**Implementation:**
+- spell_caster.gd: removed @export projectile_scene. Added DELIVERY_SCENES
+  const with preload() for all 7 types. Added _spawn_delivery() branching
+  by delivery_type. CD floor raised to 1.5s. Delivery keys match
+  CraftingUI DELIVERIES array lowercased: bolt, burst, beam, blast,
+  cleave, missile, orbs, utility.
+- bolt.gd: direct copy of spell_projectile behaviour. Area2D, layer 5,
+  mask 4. Fixed direction tracking, absorb on hit.
+- burst.gd: identical to bolt but fixed direction — no tracking.
+  SpellCaster spawns 5 instances at -20/-10/0/+10/+20 degree offsets,
+  0.75x damage each.
+- missile.gd: homing. Steers toward nearest enemy at 120 deg/s turn
+  rate. Speed fixed at 400px/s. call_deferred("queue_free") on hit.
+  Added DESPAWN_Y fallback.
+- beam.gd: instant hit. Area2D root, 40px wide hit scan on X axis in
+  _execute_hit() called from setup_from_spell(). ColorRect visual
+  40x1920 extending upward from spawn. 1s lifetime with fade.
+- aoe.gd (scene: blast): instant radial hit. Node2D root. 300px radius
+  distance check in _execute_hit() called from setup_from_spell().
+  Polygon2D circle visual generated in _ready(), expands and fades
+  over 0.5s. Delivery key is "blast" matching CSV/CraftingUI.
+- cleave.gd: instant cone hit. Node2D root. 600px range, 45 degree
+  half-angle. Polygon2D sector drawn from shot_direction in _ready().
+  _execute_hit() called from setup_from_spell(). 0.3s fade.
+- orbs.gd: 3 persistent Area2D orbs orbit player at 85px radius,
+  90 deg/s. One hit per full 360° cycle per orb (max 3 hits/cycle).
+  Never queue_free on hit. Cleaned up on page change via "orbs" group.
+  orbit_index set via set_meta before add_child so _ready() reads it.
+- SummonManager.initialize(player) called from spell_caster._ready()
+  to set _player_ref before spawn_summon fires.
+- Summon position fix: await get_tree().process_frame after
+  call_deferred("add_child") so global_position is set after node
+  enters tree.
+- Volume controls: BGM and SFX sliders in CraftingUI spec list.
+  Persist via ConfigFile at user://settings.cfg [audio] bgm/sfx.
+  _volume_row_built flag resets when spec list container is cleared
+  so sliders rebuild correctly on reopen.
+**Notes:**
+- aoe.tscn root must be Node2D not Area2D (extends Node2D).
+  cleave.tscn same. beam.tscn and orb.tscn are Area2D.
+- instant-hit deliveries (beam, blast, cleave) call _execute_hit()
+  at end of setup_from_spell(), NOT in _ready() — _ready() fires
+  before setup_from_spell() sets global_position and damage.
+- spell_caster "blast"/"cleave" branch uses add_child BEFORE
+  setup_from_spell so _ready() fires first (draws visual polygon
+  at origin), then setup_from_spell sets position and calls
+  _execute_hit().
+- All delivery scripts share identical _apply_on_hit_effects(),
+  _scaled(), _apply_aoe() implementations copied from bolt.gd.
+- Summon still requires CSV row status="active" — all summon rows
+  are currently "inactive"/tbc. Set A0007 (fire) to active to test.
+- CraftingUI delivery dropdown saves lowercase strings matching
+  DELIVERY_SCENES keys exactly via _get_selected_option_value()
+  .to_lower().
+
+  ### Session 2.46b — Spell Effects Testing + Debug Pass
+**Date:** 2026-04-13
+
+**Key findings and fixes:**
+
+- on_hit_effects were not copying into delivery scripts. All delivery scripts
+  (bolt, burst, beam, cleave, aoe, missile, orbs) now require:
+  `on_hit_effects = spell.on_hit_effects.duplicate(true)` in setup_from_spell().
+  var on_hit_effects: Array[Dictionary] = [] must be declared at class level.
+  burst.gd and beam.gd confirmed fixed this session.
+
+- PassiveManager.recalculate() was resetting _iceshield_still_timer to 0,
+  preventing barrier from ever activating. Fix: removed that single reset line.
+  still_timer now persists across recalculate() calls.
+
+- apply_slow() in shooter.gd and tank.gd now sets _is_chilled = true,
+  enabling brittle to fire correctly after a slow is applied.
+
+- apply_pushback() velocity formula changed from distance / 0.3 to just distance.
+  The divisor was producing ~1700px/s impulse which was too large.
+
+- Knockback guard added to shooter.gd and tank.gd _physics_process():
+  _knockback_timer counts down and skips normal movement velocity while active.
+  move_and_slide() always runs outside the guard.
+
+- SpellCaster now stores _cd_reduction: float = 0.0. apply_cd_reduction() saves
+  the value. _configure_cooldown_timer() applies it on every timer start:
+  wait_time = maxf(spell_data.cooldown - _cd_reduction, 1.5)
+
+- ProgressionManager.heal(amount) added: clamps to max_hp, emits hp_changed.
+
+- Damage routing through PassiveManager.get_effective_damage() confirmed working
+  via [EffDmg] debug prints. Iceshield barrier reduces damage when active.
+
+- CSVs were imported as translation resources causing stale cached data.
+  Fix: deleted spell_elements.translation and deliveries.translation,
+  reimported CSVs as plain text. FileAccess.open() reads raw CSV correctly.
+
+- apply_slow() sets _is_chilled = true. This means any slow source qualifies
+  an enemy for brittle. Strict chilled-only gating can be added later via a
+  separate apply_slow_chilled() method if needed.
+
+**Confirmed working this session:**
+  Fire: burndot, explosion, resist_bonus, stoneskin (earth slot)
+  Ice: chilled, brittle (requires slow first), chillaura, iceshield
+  Earth: stoneskin, stagger (chance-based, duration needs partner tuning)
+  Thunder: chain 1, flashcast, surge
+  Water: tidal (pushback), splash, bubbleaura, flowstate (needs heal() — now added)
+  Holy: radiance/blind, consecration, stop-cast mechanic
+  Dark: corruption, execute (20% chance), stop-cast mechanic
+
+**Known remaining issues:**
+  - bolt, cleave, aoe, missile, orbs deliveries — on_hit_effects fix not verified
+  - beam.gd — on_hit_effects fix applied this session, not yet tested
+  - Chaser (enemy.gd) has no debuff surface — all effects silent on chasers
+  - PassiveManager self-passive routing: register_passive() in SpellComposer
+    is a dead path — PassiveManager does its own lookup via _append_passive_rows()
+  - rootedpower routing incorrectly as on_hit_effects (target=enemy, cd_type=passive)
+    — needs SpellComposer filter fix to exclude from on_hit_effects
+  - Stagger and rootedpower both cd_type=passive target=enemy — same routing issue
+  - soulsiphon and flowstate regen now unblocked (heal() added)
+  - Milestone bonuses not implemented in get_school_multiplier()
+  - get_school_multiplier uses 0.05/tier vs design doc 0.02/count — needs alignment

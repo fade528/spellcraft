@@ -23,14 +23,30 @@ func take_damage(amount: float) -> void:
 		_lose_life()
 
 
+func heal(amount: float) -> void:
+	current_hp = minf(current_hp + amount, max_hp)
+	hp_changed.emit(current_hp, max_hp)
+
+
 func _lose_life() -> void:
 	lives = max(lives - 1, 0)
 	life_lost.emit(lives)
 
 	if lives <= 0:
+		_on_run_end()
 		game_over.emit()
 	else:
 		refill_hp()
+
+
+func _on_run_end() -> void:
+	var inv = get_node_or_null("/root/PlayerInventory")
+	if inv != null and inv.has_method("reset_run"):
+		inv.reset_run()
+
+	var pm = get_node_or_null("/root/PassiveManager")
+	if pm != null and pm.has_method("recalculate"):
+		pm.call_deferred("recalculate")
 
 
 func refill_hp() -> void:

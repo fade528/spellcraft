@@ -1,0 +1,16 @@
+[gd_scene format=3 uid="uid://fbml6vvym6oo"]
+
+[ext_resource type="Script" uid="uid://qvpvil5t2l10" path="res://scripts/deliveries/burst.gd" id="1_o6yfx"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_tcyyl"]
+radius = 8.0
+
+[node name="Burst" type="Area2D" unique_id=1024568155]
+collision_layer = 16
+collision_mask = 8
+script = ExtResource("1_o6yfx")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=426103000]
+shape = SubResource("CircleShape2D_tcyyl")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=644431867]

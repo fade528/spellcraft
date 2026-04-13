@@ -1,0 +1,13 @@
+[gd_scene format=3 uid="uid://c312y5km18lcj"]
+
+[ext_resource type="Script" uid="uid://20buw5h508kd" path="res://scripts/deliveries/missile.gd" id="1_h516h"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_h516h"]
+
+[node name="Missle" type="Area2D" unique_id=57369896]
+collision_layer = 16
+collision_mask = 8
+script = ExtResource("1_h516h")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1689230661]
+shape = SubResource("CircleShape2D_h516h")

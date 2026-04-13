@@ -1,0 +1,15 @@
+[gd_scene format=3 uid="uid://ctl56nxk1d7qf"]
+
+[ext_resource type="Script" uid="uid://dcn7ulta7pnho" path="res://scripts/deliveries/orbs.gd" id="1_5qoml"]
+
+[sub_resource type="CircleShape2D" id="CircleShape2D_axhw0"]
+radius = 12.0
+
+[node name="Orb" type="Area2D" unique_id=239739665]
+collision_layer = 16
+collision_mask = 8
+monitorable = false
+script = ExtResource("1_5qoml")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=883684709]
+shape = SubResource("CircleShape2D_axhw0")

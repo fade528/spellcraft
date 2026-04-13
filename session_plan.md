@@ -142,7 +142,31 @@ ARCHITECTURE NOTES:
 Paste these files to begin:
 crafting_ui.gd, tome_manager.gd
 ```
+## Session 2.45 — Delivery Scenes ✅ COMPLETE
+All 8 prompts delivered. All 7 delivery types working.
+Key bugs resolved: scene/script assignment, setup_from_spell signature
+mismatch, instant-hit _ready() timing, blast key mismatch, summon
+initialize missing, volume slider rebuild on reopen.
 
+---
+
+## Session 2.46 — Delivery Tuning + Partner Playtesting
+Goal: Partner tests all 7 delivery types, feeds back on feel and values.
+David applies tuning changes to deliveries.csv and delivery scripts.
+
+Likely tuning targets:
+- Orb orbit speed, radius, damage
+- Burst spread angle and damage multiplier
+- Cleave cone angle and range
+- Beam width and duration
+- Blast radius and visual scale
+- Missile turn rate and speed
+- CD floor (currently 1.5s — may need per-delivery override)
+
+Technical prep for this session:
+- Confirm Chaser2 rebuild (res://scenes/enemies/chaser.tscn)
+- Utility delivery stub (self-target passthrough)
+- Per-delivery CD support if needed (override in _configure_cooldown_timer)
 ---
 
 ### Session 2.5 — Spell Slot Progression
@@ -166,7 +190,49 @@ Godot 4 GDScript.
 Current scene tree: [paste]
 Relevant code: [paste progression_manager.gd, spell_caster.gd]
 ```
+=== SESSION 2.46c SCOPE ===
 
+PRIORITY 1 — Fix remaining delivery scripts:
+  Verify bolt, cleave, aoe, missile, orbs all have on_hit_effects fix applied.
+  Test each delivery type with a known on-hit effect (burndot recommended).
+
+PRIORITY 2 — Fix SpellComposer routing for passive target=enemy rows:
+  rootedpower (C0002) and stagger (C0003) are cd_type=passive target=enemy.
+  These should fire as on-hit effects from the projectile, not as PassiveManager
+  passives. They are currently included in on_hit_effects correctly but have no
+  match arm in _apply_on_hit_effects(). Add match arms for rootedpower and stagger
+  that check player movement state (rootedpower) or roll chance (stagger).
+  Note: stagger already has apply_stagger on enemies — just needs the arm.
+
+PRIORITY 3 — Deferred passives implementation:
+  rootedpower (C0002): stand still → +dmg amp, track player velocity
+  holylight (F0005): stand still → heal player + summon
+  killfuel (A0005): on enemy kill → reduce remaining spell CDs
+  overheat (A0006): every N spells → next spell gets amp
+  smite (F0002): 2 same-school spells → next spell holy amp
+  bloodpower (G0004): hp threshold → dmg boost
+  soulrequiem (G0006): soul stacks on kill → dmg amp + AoE
+  soulsiphon (G0005): lifeleech on hit + holy amp (heal() now available)
+  dispel (F0006): cast → remove debuffs from player/summon
+
+PRIORITY 4 — Base enemy refactor:
+  Create base_enemy.gd with full debuff surface
+  Shooter and Tank extend base_enemy
+  Retire enemy.gd chaser, build Chaser2 in res://scenes/enemies/
+  Set element field per enemy type for weakness system
+
+PRIORITY 5 — Alignment fixes:
+  get_school_multiplier() uses 0.05/tier — confirm intended vs design doc 0.02/count
+  Implement milestone bonuses at 5, 10, 25, 50 mana allocation
+  Remove dead register_passive() path from SpellComposer self-passive routing
+
+FILES TO UPLOAD AT SESSION START:
+  context.md, systems.md
+  spell_composer.gd (routing fix)
+  spell_projectile.gd (add rootedpower + stagger arms)
+  passive_manager.gd (deferred passives)
+  progression_manager.gd (confirm heal() present)
+  player.gd (for killfuel kill signal wiring)
 ---
 
 ## Phase 3 — Boss System

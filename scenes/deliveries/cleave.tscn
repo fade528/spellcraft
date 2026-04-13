@@ -1,0 +1,10 @@
+[gd_scene format=3 uid="uid://r3rh0ooswfqb"]
+
+[ext_resource type="Script" uid="uid://brp65jvliaswj" path="res://scripts/deliveries/cleave.gd" id="1_70mjx"]
+
+[node name="Cleave" type="Area2D" unique_id=39157178]
+collision_layer = 16
+collision_mask = 8
+script = ExtResource("1_70mjx")
+
+[node name="Polygon2D" type="Polygon2D" parent="." unique_id=982160944]
