@@ -4,4 +4,5 @@
 
 [node name="Tank" type="CharacterBody2D" unique_id=612369381]
 script = ExtResource("1_88x61")
+max_hp = 100.0
 element = "earth"

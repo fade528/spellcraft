@@ -320,7 +320,14 @@ with our architecture decisions:
 | 2.4 — Element Drops | ✅ Complete | Element drop system, summon HP bar, element counter HUD |
 | 2.41 — Mana & School System | ✅ Complete | Generic mana orbs, mana pool, school gating, SpecData, SpecManager, mana HUD |
 | 2.42 — CraftingUI Redesign | ✅ Complete | 6 bug fixes, spec list 10 slots, spec editor, per-spec tome, mana allocation UI, Save as Spec |
-| 2.43 — Spec Editor Tome Integration | ✅ Complete | Inline page navigator in spec editor, remove separate Tome view, resolve android export not picking up the csv |
+| 2.43 — Spec Editor Tome Integration | ✅ Complete | Inline page navigator in spec editor, remove separate Tome view, resolve android export not picking up the csv | 
+| 2.44 — Spell Foundation | ✅ Complete |
+| 2.45 — Spec Delivery Types | ✅ Complete |
+| 2.46 — Passive and Spell on Hit effects | ✅ Complete |
+| 2.47 — Spells 1/3 | ✅ Complete |
+| 2.48 — Spells 2/3 | ✅ Complete |
+| 2.49 — Spells 3/3 | ✅ Complete | - execute() negative damage bug (current_hp <= 0.0 guard) - _mudwall_cooldown_timer reset in recalculate() - Duplicate effects in _active_cast_passives  dedup in recalculate) - soulsiphon holy unit amp (value2) not implemented - FacingMarker first-frame timing (mudwall spawns facing UP on first proc)
+| 2.49b — Spells 3/3 | ⬜ Pending |
 | 2.5 — Spell Slots | ⬜ Pending | |
 | 3.1 — Boss State Machine | ⬜ Pending | |
 | 3.2 — First Boss | ⬜ Pending | |

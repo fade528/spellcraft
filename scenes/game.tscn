@@ -8,6 +8,7 @@
 [ext_resource type="Script" uid="uid://dwcwjyl62bay5" path="res://scripts/hud.gd" id="5_8n6rn"]
 [ext_resource type="AudioStream" uid="uid://pkefwqn6m00a" path="res://assets/audio/sfx/hurt.wav" id="5_u5sy4"]
 [ext_resource type="AudioStream" uid="uid://ctuof6mvvl7p2" path="res://assets/audio/music/mischeifaudop.wav" id="6_gee14"]
+[ext_resource type="PackedScene" uid="uid://dfw3fbylmy7eq" path="res://scenes/enemies/chaser.tscn" id="8_dinhu"]
 [ext_resource type="PackedScene" uid="uid://dy4tc3hsl0e66" path="res://scenes/ui/crafting_ui.tscn" id="9_0tnpc"]
 [ext_resource type="PackedScene" uid="uid://brlmwv3ojjiej" path="res://scenes/ui/PageFlipWidget.tscn" id="9_vtaks"]
 [ext_resource type="PackedScene" path="res://scenes/ui/control_strip.tscn" id="11_kvpfn"]
@@ -49,6 +50,7 @@ autoplay = true
 
 [node name="EnemySpawner" type="Node2D" parent="." unique_id=1950849714]
 script = ExtResource("2_mjppw")
+enemy_scene = ExtResource("8_dinhu")
 
 [node name="SpawnTimer" type="Timer" parent="EnemySpawner" unique_id=2032006331]
 
@@ -113,5 +115,3 @@ offset_bottom = -2430.0
 layer = 10
 
 [node name="ControlStrip" parent="." unique_id=1990906187 groups=["control_strip"] instance=ExtResource("11_kvpfn")]
-
-[node name="Bolt" type="Area2D" parent="." unique_id=1273277772]

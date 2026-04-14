@@ -25,6 +25,11 @@ var _dispel_pending: bool = false
 var _rootedpower_still_timer: float = 0.0
 var _rootedpower_amp: float = 0.0
 var _killfuel_last_physics_frame: int = -1
+var _soul_stacks: int = 0
+var _soul_max: int = 0
+var _mudwall_still_timer: float = 0.0
+var _mudwall_cooldown_timer: float = 0.0
+const MUDWALL_SPAWN_COOLDOWN: float = 8.0
 
 
 func _ready() -> void:
@@ -320,6 +325,79 @@ func _process(delta: float) -> void:
 			_rootedpower_still_timer = 0.0
 			_rootedpower_amp = 0.0
 
+	for effect in _active_passives:
+		if effect.get("effect_name", "") != "mudwall":
+			continue
+
+		var mw_stand: float = _scaled(effect, "value1", "scale_value1")
+		if mw_stand <= 0.0:
+			mw_stand = 2.0
+		var mw_is_still := false
+		if _player != null and is_instance_valid(_player):
+			var mw_vel = _player.get("velocity")
+			if mw_vel is Vector2:
+				mw_is_still = (mw_vel as Vector2).length() <= 10.0
+
+		_mudwall_cooldown_timer = maxf(_mudwall_cooldown_timer - delta, 0.0)
+
+		if mw_is_still:
+			_mudwall_still_timer += delta
+			if _mudwall_still_timer >= mw_stand and _mudwall_cooldown_timer <= 0.0:
+				_mudwall_still_timer = 0.0
+				_mudwall_cooldown_timer = MUDWALL_SPAWN_COOLDOWN
+				_spawn_mudwall(effect)
+				print("[Mudwall] spawning")
+		else:
+			_mudwall_still_timer = 0.0
+
+
+func _spawn_mudwall(effect: Dictionary) -> void:
+	if _player == null or not is_instance_valid(_player):
+		return
+
+	var mw_width: float = _scaled(effect, "value2", "scale_value2")
+	if mw_width <= 0.0:
+		mw_width = 200.0
+	var mw_duration: float = _scaled(effect, "value3", "scale_value3")
+	if mw_duration <= 0.0:
+		mw_duration = 4.0
+
+	# Spawn in front of player (toward nearest enemy, default UP)
+	var mw_dir := Vector2.UP
+	if _player != null and is_instance_valid(_player):
+		var facing_marker := _player.get_node_or_null("FacingMarker")
+		if facing_marker != null:
+			mw_dir = Vector2.UP.rotated(facing_marker.rotation)
+		else:
+			mw_dir = Vector2.UP.rotated(_player.rotation)
+
+	var mw_scene = load("res://scenes/effects/mud_wall.tscn")
+	if mw_scene == null:
+		print("[Mudwall] ERROR: scene not found")
+		return
+	var mw_instance = mw_scene.instantiate()
+	if mw_instance == null:
+		print("[Mudwall] ERROR: instantiate failed")
+		return
+	mw_instance.width = mw_width
+	mw_instance.duration = mw_duration
+	var spawn_pos: Vector2 = _player.global_position + mw_dir * 80.0
+	get_tree().current_scene.add_child(mw_instance)
+	mw_instance.global_position = spawn_pos
+	# Rotate wall perpendicular to the direction toward the enemy
+	# mw_dir points toward enemy, wall should be perpendicular to block that path
+	mw_instance.rotation = mw_dir.angle()
+	print("[Mudwall] player_rotation: %.3f | mw_dir: %s | wall_rotation: %.3f" % [
+		_player.rotation,
+		str(mw_dir),
+		mw_instance.rotation
+	])
+	print("[Mudwall] player children rotations:")
+	for child in _player.get_children():
+		if child is Node2D:
+			print("  %s rotation: %.3f" % [child.name, child.rotation])
+	print("[Mudwall] spawned at: %s" % str(spawn_pos))
+
 
 func recalculate() -> void:
 	damage_reduction = 0.0
@@ -341,6 +419,9 @@ func recalculate() -> void:
 	_active_enemy_passives = []
 	_rootedpower_still_timer = 0.0
 	_rootedpower_amp = 0.0
+	_soul_stacks = 0
+	_soul_max = 0
+	_mudwall_still_timer = 0.0
 
 	_player = get_tree().get_first_node_in_group("player")
 
@@ -429,6 +510,9 @@ func recalculate() -> void:
 		if _chill_aura_ring != null and is_instance_valid(_chill_aura_ring):
 			_chill_aura_ring.queue_free()
 		_chill_aura_ring = null
+
+	print("[PM] active passives: ", _active_passives.map(func(e): return e.get("effect_name","")))
+	print("[PM] active cast passives: ", _active_cast_passives.map(func(e): return e.get("effect_name","")))
 
 
 func _apply_stat_passive(effect: Dictionary) -> void:
@@ -598,29 +682,124 @@ func is_iceshield_active() -> bool:
 	return _iceshield_active
 
 
-func on_enemy_killed() -> void:
-	var current_frame := Engine.get_physics_frames()
-	if current_frame == _killfuel_last_physics_frame:
+func get_soul_amp() -> float:
+	if _soul_stacks <= 0:
+		return 0.0
+	var soul_effect: Dictionary = {}
+	for effect in _active_cast_passives:
+		if effect.get("effect_name", "") == "soulrequiem":
+			soul_effect = effect
+			break
+	if soul_effect.is_empty():
+		return 0.0
+	return _soul_stacks * _scaled(soul_effect, "value1", "scale_value1")
+
+
+func on_player_damaged(_amount: float) -> void:
+	if _soul_stacks <= 0:
 		return
-	_killfuel_last_physics_frame = current_frame
+	var soul_effect: Dictionary = {}
+	for effect in _active_cast_passives:
+		if effect.get("effect_name", "") == "soulrequiem":
+			soul_effect = effect
+			break
+	print("[Soul] on_player_damaged — stacks: %d | has effect: %s" % [
+			_soul_stacks,
+			str(not soul_effect.is_empty())
+	])
+	if soul_effect.is_empty():
+		return
+
+	var radius: float = _scaled(soul_effect, "value3", "scale_value3")
+	if radius <= 0.0:
+		radius = 200.0
+	print("[Soul] effect tier: %d | raw value1: %s | raw scale_value1: %s" % [
+			soul_effect.get("tier", -1),
+			str(soul_effect.get("value1", "MISSING")),
+			str(soul_effect.get("scale_value1", "MISSING"))
+	])
+	# value1 is the per-stack amp (e.g. 0.04 at tier 10)
+	# AoE base damage = player's active spell item_base_dmg
+	# multiplied by soul stack count and the amp value
+	var amp_per_stack: float = _scaled(soul_effect, "value1", "scale_value1")
+	var base_dmg: float = 10.0
+	var caster = get_tree().get_first_node_in_group("spell_casters")
+	if caster != null and is_instance_valid(caster) and _has_property(caster, "item_base_dmg"):
+		base_dmg = float(caster.get("item_base_dmg"))
+	var school_mult: float = 1.0
+	var inv = get_node_or_null("/root/PlayerInventory")
+	if inv != null and inv.has_method("get_school_multiplier"):
+		school_mult = inv.get_school_multiplier("dark")
+	if inv != null:
+		print("[Soul] dark tier: %d | school_mult: %.4f" % [
+				inv.get_school_tier("dark"),
+				inv.get_school_multiplier("dark")
+		])
+	var total_dmg: float = base_dmg * school_mult * amp_per_stack * float(_soul_stacks) * 10.0
+	print("[Soul] requiem vars — base_dmg: %.2f | school_mult: %.4f | amp_per_stack: %.4f | stacks: %d | multiplier: 10.0 | total: %.2f" % [
+			base_dmg, school_mult, amp_per_stack, _soul_stacks, total_dmg])
+	_soul_stacks = 0
+
+	if _player == null or not is_instance_valid(_player):
+		return
+	var aoe_pos: Vector2 = _player.global_position
+	for enemy in get_tree().get_nodes_in_group("enemies"):
+		if not is_instance_valid(enemy):
+			continue
+		if enemy.global_position.distance_to(aoe_pos) <= radius:
+			if enemy.has_method("take_damage"):
+				enemy.take_damage(total_dmg, "dark")
+
+	var marker := Node2D.new()
+	var ring := Line2D.new()
+	ring.default_color = Color(0.4, 0.0, 0.8, 0.8)
+	ring.width = 4.0
+	for i in range(33):
+		var angle := TAU * float(i) / 32.0
+		ring.add_point(Vector2(cos(angle), sin(angle)) * radius)
+	marker.add_child(ring)
+	marker.global_position = aoe_pos
+	get_tree().current_scene.add_child(marker)
+	var tween := marker.create_tween()
+	tween.tween_property(ring, "modulate:a", 0.0, 0.5)
+	tween.tween_callback(marker.queue_free)
+
+
+func on_enemy_killed() -> void:
 	if _player == null or not is_instance_valid(_player):
 		return
 	var prog := get_node_or_null("/root/ProgressionManager")
 	if prog != null and prog.has_method("is_dead") and prog.is_dead():
 		return
-	var killfuel_effect: Dictionary = {}
-	for effect in _active_passives:
-		if effect.get("effect_name", "") == "killfuel":
-			killfuel_effect = effect
+
+	# killfuel — deduped per physics frame
+	var current_frame := Engine.get_physics_frames()
+	if current_frame != _killfuel_last_physics_frame:
+		_killfuel_last_physics_frame = current_frame
+		var killfuel_effect: Dictionary = {}
+		for effect in _active_passives:
+			if effect.get("effect_name", "") == "killfuel":
+				killfuel_effect = effect
+				break
+		if not killfuel_effect.is_empty():
+			var cd_cut: float = _scaled(killfuel_effect, "value1", "scale_value1")
+			if cd_cut > 0.0:
+				for caster in get_tree().get_nodes_in_group("spell_casters"):
+					if is_instance_valid(caster) and caster.has_method("apply_cd_reduction_instant"):
+						caster.apply_cd_reduction_instant(cd_cut)
+
+	# soulrequiem — NOT deduped, every kill counts
+	var soul_effect: Dictionary = {}
+	for effect in _active_cast_passives:
+		if effect.get("effect_name", "") == "soulrequiem":
+			soul_effect = effect
 			break
-	if killfuel_effect.is_empty():
-		return
-	var cd_cut: float = _scaled(killfuel_effect, "value1", "scale_value1")
-	if cd_cut <= 0.0:
-		return
-	for caster in get_tree().get_nodes_in_group("spell_casters"):
-		if is_instance_valid(caster) and caster.has_method("apply_cd_reduction_instant"):
-			caster.apply_cd_reduction_instant(cd_cut)
+	if not soul_effect.is_empty():
+		var soul_max_raw: int = roundi(_scaled(soul_effect, "value2", "scale_value2"))
+		_soul_max = maxi(soul_max_raw, 1)
+		if _soul_stacks < _soul_max:
+			_soul_stacks += 1
+		print("[Soul] on_enemy_killed — stacks: %d / %d" % [_soul_stacks, _soul_max])
 
 
 func get_overheat_effect() -> Dictionary:

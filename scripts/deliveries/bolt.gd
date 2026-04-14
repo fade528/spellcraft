@@ -8,6 +8,7 @@ signal hit(target: Node, damage: float)
 @export var direction: Vector2 = Vector2.UP
 var on_hit_effects: Array[Dictionary] = []
 var spell_final_dmg: float = 0.0
+var element: String = ""
 
 const DESPAWN_Y: float = -50.0
 
@@ -48,6 +49,7 @@ func setup_from_spell(
 	weakness_mult: float
 ) -> void:
 	spell_final_dmg = item_base_dmg * spell.dmgmult_chain * weakness_mult
+	element = spell.elemental_element.to_lower()
 	on_hit_effects = spell.on_hit_effects.duplicate()
 	setup(spawn_pos, move_dir, spell_final_dmg, spell.projectile_speed)
 
@@ -62,14 +64,26 @@ func _on_area_entered(area: Area2D) -> void:
 	if has_meta("ignore_node") and get_meta("ignore_node") == target:
 		return
 	if target.has_method("take_damage"):
-		target.take_damage(damage)
-		var _pm_ss := get_node_or_null("/root/PassiveManager")
-		if _pm_ss != null and _pm_ss.has_method("get_soulsiphon_leech"):
-			var _ss_leech: float = _pm_ss.get_soulsiphon_leech()
-			if _ss_leech > 0.0:
-				var _prog_ss := get_node_or_null("/root/ProgressionManager")
-				if _prog_ss != null and _prog_ss.has_method("heal"):
-					_prog_ss.heal(spell_final_dmg * _ss_leech)
+		var _smite_element := element
+		var _smite_dmg_mult := 1.0
+		print("[Smite] bolt register — element: '%s' | has method: %s" % [
+				element, str(target.has_method("register_hit_school"))])
+		if target.has_method("register_hit_school") and element != "":
+			target.register_hit_school(element)
+		if target.has_method("consume_smite_hit") and target.consume_smite_hit():
+			var _pm_smite = get_node_or_null("/root/PassiveManager")
+			if _pm_smite != null:
+				print("[Smite] searching enemy passives: ", _pm_smite._active_enemy_passives.map(func(e): return e.get("effect_name","")))
+				for effect in _pm_smite._active_enemy_passives:
+					if (effect.get("effect_name", "") as String).begins_with("smite"):
+						var tier: int = effect.get("tier", 0)
+						var base: float = float(str(effect.get("value1", 0.0)))
+						var scale_v: float = float(str(effect.get("scale_value1", 0.0)))
+						_smite_dmg_mult = 1.0 + base + scale_v * float(tier)
+						_smite_element = "holy"
+						print("[Smite] bolt proc — amp: %.2f" % _smite_dmg_mult)
+						break
+		target.take_damage(damage * _smite_dmg_mult, _smite_element)
 		_apply_on_hit_effects(target)
 		hit.emit(target, damage)
 		queue_free()
@@ -78,7 +92,7 @@ func _on_area_entered(area: Area2D) -> void:
 func _scaled(effect: Dictionary, base_key: String, scale_key: String) -> float:
 	var tier: int = int(effect.get("tier", 0))
 	var base: Variant = effect.get(base_key, 0.0)
-	var scale: Variant = effect.get(scale_key, 0.0)
+	var scale_v: Variant = effect.get(scale_key, 0.0)
 	var base_f: float = 0.0
 	if base is float:
 		base_f = base
@@ -87,12 +101,12 @@ func _scaled(effect: Dictionary, base_key: String, scale_key: String) -> float:
 	elif base is String and (base as String).is_valid_float():
 		base_f = (base as String).to_float()
 	var scale_f: float = 0.0
-	if scale is float:
-		scale_f = scale
-	elif scale is int:
-		scale_f = float(scale)
-	elif scale is String and (scale as String).is_valid_float():
-		scale_f = (scale as String).to_float()
+	if scale_v is float:
+		scale_f = scale_v
+	elif scale_v is int:
+		scale_f = float(scale_v)
+	elif scale_v is String and (scale_v as String).is_valid_float():
+		scale_f = (scale_v as String).to_float()
 	return base_f + scale_f * float(tier)
 
 

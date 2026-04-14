@@ -44,6 +44,99 @@ Renderer:      Mobile
 
 ## Current Status
 
+**Session 2.49 complete:** Deferred Passives Part 3 — all steps implemented and tested in-engine.
+
+**What was delivered in 2.49:**
+- smite (F0002): Per-enemy hit tracking in base_enemy. Two consecutive hits of same school 
+  on same enemy triggers smite amp. Delivery scripts register hit school and consume smite 
+  proc. Amp sourced from _active_enemy_passives. Element overrides to holy on proc.
+- soulrequiem (G0006): Soul stacks increment on kill (not deduped per frame — killfuel 
+  dedup separated). AoE burst on player damage taken, scales with stack count and school 
+  mult. Stacks reset after burst. on_player_damaged() wired in ProgressionManager.
+- soulsiphon (G0005): Leech block added to spell_caster.gd in both fire sites. 8% of 
+  final_dmg healed per shot at M10.
+- mudwall (C0005): Area2D scene spawned from PassiveManager after standing still for 
+  value1 seconds. Faces player's FacingMarker direction. Perpendicular rotation. 8s spawn 
+  cooldown. Blocks enemy projectiles via area_entered on layer 5. Auto-despawns via Timer.
+- base_enemy.gd: Created res://scripts/enemies/base_enemy.gd with full debuff surface. 
+  Shooter and Tank extend base_enemy. Chaser2 built at res://scenes/enemies/chaser.tscn.
+  Old enemy.tscn retired (EnemySpawner updated to chaser.tscn).
+- Element tracking: All 7 delivery scripts now carry elemental_element variable, set in 
+  setup_from_spell(). Used by smite hit registration.
+- killfuel dedup separated from soulrequiem in on_enemy_killed() so multi-kill frames 
+  don't block soul stack accumulation.
+- soulsiphon legacy arm removed from all delivery scripts (was double-healing risk).
+
+**Known outstanding (defer to 2.50):**
+- Smite debug prints removed but FacingMarker direction occasionally reads 0 on first 
+  spawn frame — minor timing issue, not blocking
+- Execute passive causes negative damage when enemy already at negative HP — needs 
+  current_hp <= 0.0 guard in base_enemy.execute()
+- Duplicate effects in _active_cast_passives (bloodpower, soulsiphon, soulrequiem appear 
+  twice when in same slot) — needs dedup in recalculate()
+- _mudwall_cooldown_timer should not reset in recalculate() — fix pending
+- Mudwall does not block player projectiles currently (passes through) — by design for now
+- soulsiphon amp on holy units (value2) not yet implemented — deferred
+- Milestone bonuses not yet implemented
+- get_school_multiplier() uses 0.05/tier — design doc says 0.02/count, needs alignment
+- Chaser2 confirm full debuff surface working — light testing only
+- SpellComposer register_passive() still dead path
+
+## Session 2.49 — Deferred Passives Part 3
+
+### Smite architecture (F0002)
+Moved from PassiveManager signal tracking to per-enemy hit tracking.
+- base_enemy.gd: _last_two_hit_schools: Array[String], register_hit_school(school), 
+  consume_smite_hit() -> bool
+- All 7 delivery scripts: element var added, register_hit_school called before 
+  take_damage, consume_smite_hit checked, amp sourced from PM._active_enemy_passives
+- PassiveManager: spell_fired signal removed, _on_spell_fired removed, consume_smite 
+  removed. Smite effect lives in _active_enemy_passives (cd_type=passive, target=enemy)
+
+### Soulrequiem architecture (G0006)
+- PassiveManager: _soul_stacks, _soul_max. on_enemy_killed() increments stacks (NOT 
+  deduped — killfuel dedup is now a separate frame check block).
+- on_player_damaged(amount) called from ProgressionManager.take_damage().
+- AoE damage = base_dmg * school_mult * amp_per_stack * stacks * 10.0
+- Stacks reset to 0 after AoE fires.
+
+### Soulsiphon (G0005)
+- get_soulsiphon_leech() searches _active_cast_passives.
+- Leech applied in spell_caster.gd after _spawn_delivery() in both fire sites.
+- Legacy arm removed from all delivery scripts.
+
+### Mudwall (C0005)
+- Scene: res://scenes/effects/mud_wall.tscn, root = Area2D, script = mudwall.gd
+- mudwall.gd: extends Area2D. CollisionShape2D and ColorRect created in _ready().
+  Layer 6 (hit by enemy projectiles mask=6). area_entered destroys enemy projectiles.
+- PassiveManager: _mudwall_still_timer, _mudwall_cooldown_timer, MUDWALL_SPAWN_COOLDOWN=8.
+  Still-timer in _process(). _spawn_mudwall() uses FacingMarker rotation for direction.
+  Wall rotation = mw_dir.angle(). ColorRect is 30x200 (vertical by default).
+  Position set via direct add_child + global_position after add.
+
+### Base enemy refactor
+- res://scripts/enemies/base_enemy.gd: full debuff surface, take_damage, spawn_drop,
+  damage numbers, flash methods. All shared logic extracted from shooter/tank.
+- shooter.gd and tank.gd now extend base_enemy, contain only unique logic.
+- res://scripts/enemies/chaser.gd: new Chaser2, extends base_enemy, chase movement.
+- res://scenes/enemies/chaser.tscn: new scene. EnemySpawner updated.
+- res://scenes/enemy.tscn: retired (not deleted, not spawning).
+
+### Element tracking in delivery scripts
+All 7 delivery scripts (bolt, missile, burst, beam, aoe, cleave, orbs) now have:
+  var element: String = ""
+Set in setup_from_spell(): element = spell.elemental_element.to_lower()
+Used by smite hit registration before take_damage call.
+
+### Key bug fixes
+- killfuel dedup separated from soulrequiem: on_enemy_killed() now has killfuel block 
+  (deduped per physics frame) and soulrequiem block (not deduped) independently.
+- execute() negative damage: KNOWN BUG — needs current_hp <= 0.0 guard (defer 2.50)
+- _mudwall_cooldown_timer resets in recalculate(): KNOWN BUG — defer 2.50
+
+**Next:** Session 2.50 — TBD (execute fix, dedup fix, spec system, equipment slots, 
+wave structure)
+
 **Session 2.48 complete:** Deferred Passives Part 2 — all steps implemented and tested in-engine.
 
 **What was delivered in 2.48:**

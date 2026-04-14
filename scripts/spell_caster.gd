@@ -148,6 +148,9 @@ func _try_stop_cast_fire() -> void:
 		final_dmg *= (1.0 + _passmgr.get_damage_amp())
 	if _passmgr != null and _passmgr.has_method("get_bloodpower_amp"):
 		final_dmg *= (1.0 + _passmgr.get_bloodpower_amp())
+	if _passmgr != null and _passmgr.has_method("get_soul_amp"):
+		final_dmg *= (1.0 + _passmgr.get_soul_amp())
+		print("[Soul] soul amp: %.2f | final_dmg: %.2f" % [_passmgr.get_soul_amp(), final_dmg])
 	_check_overheat()
 	if _overheat_ready:
 		var _oh_dmg := final_dmg * _overheat_amp
@@ -163,6 +166,15 @@ func _try_stop_cast_fire() -> void:
 			_overheat_ready = false
 		)
 	_spawn_delivery(spawn_position, shot_direction, final_dmg, weakness)
+	# Soulsiphon leech
+	if _passmgr != null and _passmgr.has_method("get_soulsiphon_leech"):
+		var _leech: float = _passmgr.get_soulsiphon_leech()
+		if _leech > 0.0:
+			var _heal_amount: float = final_dmg * _leech
+			var _prog = get_node_or_null("/root/ProgressionManager")
+			if _prog != null and _prog.has_method("heal"):
+				_prog.heal(_heal_amount)
+			print("[Siphon] leech: %.4f | heal: %.2f" % [_leech, _heal_amount])
 
 
 func apply_cd_reduction(reduction: float) -> void:
@@ -318,6 +330,9 @@ func _on_cooldown_timer_timeout() -> void:
 		final_dmg *= (1.0 + _passmgr.get_damage_amp())
 	if _passmgr != null and _passmgr.has_method("get_bloodpower_amp"):
 		final_dmg *= (1.0 + _passmgr.get_bloodpower_amp())
+	if _passmgr != null and _passmgr.has_method("get_soul_amp"):
+		final_dmg *= (1.0 + _passmgr.get_soul_amp())
+		print("[Soul] soul amp: %.2f | final_dmg: %.2f" % [_passmgr.get_soul_amp(), final_dmg])
 	_check_overheat()
 	if _overheat_ready:
 		var _oh_dmg := final_dmg * _overheat_amp
@@ -333,6 +348,15 @@ func _on_cooldown_timer_timeout() -> void:
 			_overheat_ready = false
 		)
 	_spawn_delivery(spawn_position, shot_direction, final_dmg, weakness)
+	# Soulsiphon leech
+	if _passmgr != null and _passmgr.has_method("get_soulsiphon_leech"):
+		var _leech: float = _passmgr.get_soulsiphon_leech()
+		if _leech > 0.0:
+			var _heal_amount: float = final_dmg * _leech
+			var _prog = get_node_or_null("/root/ProgressionManager")
+			if _prog != null and _prog.has_method("heal"):
+				_prog.heal(_heal_amount)
+			print("[Siphon] leech: %.4f | heal: %.2f" % [_leech, _heal_amount])
 	var full_cd: float = maxf(spell_data.cooldown - _cd_reduction, 1.5) if spell_data != null else 1.5
 	cooldown_timer.wait_time = full_cd
 	cooldown_timer.start()

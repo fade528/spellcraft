@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://448ofrdcrypd"]
+
+[ext_resource type="Script" uid="uid://eywgxgldc0em" path="res://scripts/effects/mudwall.gd" id="1_eqkpy"]
+
+[node name="MudWall" type="Area2D" unique_id=1268017261]
+script = ExtResource("1_eqkpy")

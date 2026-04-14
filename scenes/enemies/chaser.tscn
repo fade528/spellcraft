@@ -1,0 +1,8 @@
+[gd_scene format=3 uid="uid://dfw3fbylmy7eq"]
+
+[ext_resource type="Script" uid="uid://bpd8fng5fcoq1" path="res://scripts/enemies/chaser.gd" id="1_uplcp"]
+
+[node name="Chaser" type="CharacterBody2D" unique_id=2112467690]
+script = ExtResource("1_uplcp")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1620008759]

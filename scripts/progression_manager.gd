@@ -17,8 +17,12 @@ func _ready() -> void:
 
 
 func take_damage(amount: float) -> void:
+	print("[PM] take_damage called — amount: %.2f" % amount)
 	current_hp = max(current_hp - amount, 0.0)
 	hp_changed.emit(current_hp, max_hp)
+	var _pm_soul = get_node_or_null("/root/PassiveManager")
+	if _pm_soul != null and _pm_soul.has_method("on_player_damaged"):
+		_pm_soul.on_player_damaged(amount)
 
 	if current_hp <= 0.0:
 		_lose_life()

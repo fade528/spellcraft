@@ -47,6 +47,7 @@ var _boss_bar_container: Control
 var _slot_cd_labels: Array[Label] = []
 var _slot_cd_bars: Array[ColorRect] = []
 var _slot_cd_bar_bgs: Array[ColorRect] = []
+var _soul_label: Label = null
 
 
 func _ready() -> void:
@@ -139,6 +140,15 @@ func _build_hp_row() -> void:
 	_buff_row.size = Vector2(SCREEN_WIDTH - 20.0, 36.0)
 	_buff_row.add_theme_constant_override("separation", 8)
 	strip_panel.add_child(_buff_row)
+
+	_soul_label = Label.new()
+	_soul_label.name = "SoulLabel"
+	_soul_label.position = Vector2(10.0, 82.0)
+	_soul_label.size = Vector2(500.0, 28.0)
+	_soul_label.add_theme_font_size_override("font_size", 20)
+	_soul_label.add_theme_color_override("font_color", Color(0.56, 0.25, 0.75))
+	_soul_label.visible = false
+	strip_panel.add_child(_soul_label)
 
 	for i in range(3):
 		var life_rect: ColorRect = ColorRect.new()
@@ -410,6 +420,28 @@ func _refresh_buffs() -> void:
 		var spacer := Control.new()
 		spacer.custom_minimum_size = Vector2(10, 0)
 		_buff_row.add_child(spacer)
+
+	if _soul_label != null and is_instance_valid(_soul_label):
+		var stacks: int = int(pm.get("_soul_stacks") if pm.get("_soul_stacks") != null else 0)
+		if stacks > 0:
+			_soul_label.text = "Soul: %d (AoE: %.0f)" % [stacks, _get_soul_aoe_dmg(pm)]
+			_soul_label.visible = true
+		else:
+			_soul_label.visible = false
+
+
+func _get_soul_aoe_dmg(pm: Node) -> float:
+	var cast_passives = pm.get("_active_cast_passives")
+	if cast_passives == null:
+		return 0.0
+	for effect in cast_passives:
+		if effect.get("effect_name", "") == "soulrequiem":
+			var tier: int = effect.get("tier", 0)
+			var base: float = float(str(effect.get("value1", 0.0)))
+			var scale_v: float = float(str(effect.get("scale_value1", 0.0)))
+			var dmg_per_stack: float = base + scale_v * float(tier)
+			return dmg_per_stack * float(pm._soul_stacks) * 5.0
+	return 0.0
 
 
 func _refresh_all() -> void:

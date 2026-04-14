@@ -8,6 +8,7 @@ signal hit(target: Node, damage: float)
 var on_hit_effects: Array[Dictionary] = []
 var spell_final_dmg: float = 0.0
 var _speed_multiplier: float = 1.0
+var element: String = ""
 
 const DESPAWN_Y := -50.0
 
@@ -46,6 +47,7 @@ func setup_from_spell(
 	weakness_mult: float
 ) -> void:
 	spell_final_dmg = item_base_dmg * spell.dmgmult_chain * weakness_mult
+	element = spell.elemental_element.to_lower()
 	on_hit_effects = spell.on_hit_effects.duplicate()
 	setup(spawn_pos, move_dir, spell_final_dmg, spell.projectile_speed)
 
@@ -75,7 +77,30 @@ func _on_area_entered(area: Area2D) -> void:
 	if has_meta("ignore_node") and get_meta("ignore_node") == target:
 		return
 	if target.has_method("take_damage"):
-		target.take_damage(damage)
+		var final_dmg := damage
+		# Smite hit tracking
+		var _smite_element := element
+		var _smite_dmg_mult := 1.0
+		print("[Smite] attempting register — element: '%s' | enemy has method: %s" % [
+			element,
+			str(target.has_method("register_hit_school"))
+		])
+		if target.has_method("register_hit_school") and element != "":
+			target.register_hit_school(element)
+		if target.has_method("consume_smite_hit") and target.consume_smite_hit():
+			var _pm_smite = get_node_or_null("/root/PassiveManager")
+			if _pm_smite != null:
+				# Find smite effect in active cast passives
+				for effect in _pm_smite._active_cast_passives:
+					if (effect.get("effect_name", "") as String).begins_with("smite"):
+						var tier: int = effect.get("tier", 0)
+						var base: float = float(str(effect.get("value1", 0.0)))
+						var scale: float = float(str(effect.get("scale_value1", 0.0)))
+						_smite_dmg_mult = 1.0 + base + scale * float(tier)
+						_smite_element = "holy"
+						print("[Smite] amp: %.2f | element overridden to holy" % _smite_dmg_mult)
+						break
+		target.take_damage(final_dmg * _smite_dmg_mult, _smite_element)
 		_apply_on_hit_effects(target)
 		hit.emit(target, damage)
 		queue_free()
