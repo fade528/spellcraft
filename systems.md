@@ -50,32 +50,69 @@ Notes: Gotchas, things to watch for
 
 ---
 
-## current status
-**Session 2.48 complete:** Deferred Passives Part 2 implemented and verified.
+### Session 2.49b — Deferred Passives Cleanup + Fixes
+**Date:** 2026-04-15
 
-**What was delivered in 2.48:**
-- killfuel (A0005): per-physics-frame deduped CD cut on kill. One-shot timer fix applied.
-- overheat (A0006): N-cast threshold fires delayed boosted shot. Badge shows while pending.
-- bloodpower (G0004): HP-pct damage amp via PassiveManager.get_bloodpower_amp()
-- soulsiphon (G0005): rearchitected to all 7 delivery types via PassiveManager leech
-- dispel registration (F0006): wired but inert until enemies apply debuffs to player
-- Burn stacking: additive _burn_damage, duration reset on reapply
-- CD timer: one_shot=true architecture, wait_time corruption eliminated
-- Dynamic stagger: active-casters-only even distribution in player._refresh_all_casters()
-- Control strip: 4-slot CD row with colour bars
-- Enemy debuff flash colours on hit
-- Player green flash on any heal source
+#### PassiveManager — combat page integrity
+**Decision:** PassiveManager reads `TomeManager.get_combat_active_page()` not `get_active_page()`.
+**Reason:** `get_active_page()` returns the CraftingUI navigation cursor position. Browsing Prev/Next without pressing Activate was causing passives to reflect the browsed page, not the live page.
+**Implementation:** `TomeManager.combat_active_page_index: int` set only inside `flip_to_page()` alongside `active_page_index`. `get_combat_active_page()` returns `get_page(combat_active_page_index)`.
+**Notes:** `active_page_index` continues to drive CraftingUI navigation display. The two indices are intentionally separate.
+
+#### PassiveManager — recalculate() dirty-flag dedup
+**Decision:** `recalculate()` is now a thin scheduler; actual work is in `_do_recalculate()`.
+**Implementation:**
+```gdscript
+var _recalculate_queued: bool = false
+
+func recalculate() -> void:
+    if _recalculate_queued:
+        return
+    _recalculate_queued = true
+    call_deferred("_do_recalculate")
+
+func _do_recalculate() -> void:
+    _recalculate_queued = false
+    # ... full recalculate body
+```
+**Reason:** SpellCaster.refresh_spell() is called for all 4 casters per flip_to_page(). Without dedup, recalculate() fired 4+ times per frame.
+
+#### PassiveManager — _on_node_added removed
+**Decision:** Removed `get_tree().node_added.connect(_on_node_added)` and `_on_node_added()`.
+**Reason:** Any UI node added by CraftingUI was triggering `recalculate()`, causing passive reads mid-navigation.
+**Replacement:** `refresh_spell()` in SpellCaster now triggers `_pm.call_deferred("recalculate")` on activation.
+
+#### PassiveManager — cast+enemy passive collection fix
+**Decision:** `_active_enemy_passives` now collects `cd_type=cast OR cd_type=passive` with `target=enemy`.
+**Reason:** Effects like stagger, blind, wet, corruption, splash have `cd_type=cast, target=enemy`. The old condition required `cd_type=passive`, silently dropping all of them. This was the root cause of zero debuff flashes on Chaser/Shooter.
+
+#### PassiveManager — passive list dedup
+**Decision:** After the slot loop in `_do_recalculate()`, all three passive lists are deduplicated by `effect_name` (keep first occurrence).
+**Reason:** Same effect appearing in multiple spell slots caused double-counting of amps (bloodpower, soulsiphon, soulrequiem).
+
+#### soulsiphon holy amp (G0005 value2)
+**Decision:** `get_soulsiphon_leech(target_element: String = "") -> float` checks if target is "holy" and returns `value1 + value2` if so. Default `""` preserves non-holy behaviour.
+**Implementation:** Both fire sites in spell_caster.gd pass `target_el` (already computed from `_get_target_element()`).
+
+#### SpellCaster → PassiveManager activation trigger
+**Decision:** `refresh_spell()` calls `get_node_or_null("/root/PassiveManager").call_deferred("recalculate")` after `_recompose_spell()`.
+**Reason:** Passives must update when spells are activated. Previously only `page_flipped` signal triggered recalculate, which fired on mid-combat flips but not on CraftingUI activation.
+
+---
+
+## current status
+**Session 2.49b complete:** Deferred Passives Cleanup + Fixes — all steps implemented and verified in-engine. See Decisions Log above for full detail.
 
 **Known outstanding:**
+- Summon contact damage registers empty element in Smite — noisy but harmless
 - Summon requires spell_elements.csv A0007 Status="active" to appear
 - Utility delivery = self-target, not yet implemented
-- Chaser to be rebuilt as Chaser2
-- soulsiphon legacy arm still in all delivery _apply_on_hit_effects() — remove next session
 - dispel registration inert until enemy-on-player debuffs exist
 - Milestone bonuses not implemented
 - get_school_multiplier() 0.05/tier vs design 0.02/count — needs alignment
+- SpellComposer register_passive() is dead path
 
-**Next:** Session 2.49 — TBD
+**Next:** Session 2.50 — TBD (wave structure / enemy variety, spec system polish, equipment slots)
 
 ### Player Movement
 **Date:** TBD

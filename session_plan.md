@@ -88,6 +88,25 @@ Known remaining issues:
 
 ---
 
+## Session 2.49b — Deferred Passives Cleanup + Fixes ✅ COMPLETE
+**Status: COMPLETE — 2026-04-15**
+
+Steps completed:
+- STEP 1: execute() guard — already present from 2.49, confirmed ✅
+- STEP 2: recalculate() cast passive dedup — implemented ✅
+- STEP 3: mudwall cooldown reset — already correct, confirmed ✅
+- STEP 4: FacingMarker rotation == 0.0 explicit branch + debug print ✅
+- STEP 5: soulsiphon holy amp via target_element param ✅
+- STEP 6: Chaser2 debuff test — revealed Bug B (cast+enemy collection) ✅ fixed
+
+Additional bugs found and fixed during session:
+- Bug B: cd_type=cast target=enemy effects silently dropped from _active_enemy_passives — fixed
+- Passive integrity: passives reading CraftingUI cursor page not combat page — fixed
+- Recalculate storm: dirty-flag dedup (recalculate → _do_recalculate) added — fixed
+- _on_node_added spurious recalculate trigger: removed — fixed
+
+---
+
 ## Session 2.43 — Spec Editor Tome Integration ✅ COMPLETE
 Delivered: Unified spec+page editor, menu button, Android CSV fix.
 
@@ -169,27 +188,18 @@ Technical prep for this session:
 - Per-delivery CD support if needed (override in _configure_cooldown_timer)
 ---
 
-### Session 2.5 — Spell Slot Progression
+### Session 2.5 — Wave Structure / Enemy Variety
 **Status: ⬜ Pending**
 
-```
-Read context.md and systems.md first. Build spell slot
-progression — ProgressionManager tracks level,
-beating a boss advances level, levels 1-4 each
-unlock one additional SpellCaster on the player.
+> All spell system work stays under 2.4x. Session 2.5 begins non-spell systems.
+> Spell slot progression (boss-gated SpellCaster unlocks) is Phase 4 content — see Session 4.1.
 
-Level unlocks:
-Lv1 = 1 slot (default), Lv2 = 2, Lv3 = 3, Lv4 = 4
-Lv5 = Ultimate (Session 4.2), Lv6 = Ultimate upgrade
-
-SpellCaster nodes pre-built on player but disabled.
-ProgressionManager.advance_level() enables next one
-and signals crafting UI to show the new slot.
-
-Godot 4 GDScript.
-Current scene tree: [paste]
-Relevant code: [paste progression_manager.gd, spell_caster.gd]
-```
+Candidates (pick focus at session start):
+- [ ] Wave structure / enemy variety (spawner patterns, elite enemies, wave timer)
+- [ ] Equipment slots (hat, robe, gloves, boots, weapon — drop from bosses)
+- [ ] Summon empty-element Smite registration fix
+- [ ] get_school_multiplier() 0.05 vs 0.02 alignment
+- [ ] Spec system polish (Confirm Spells flow, spec picker in-game)
 === SESSION 2.46c SCOPE ===
 
 PRIORITY 1 — Fix remaining delivery scripts:
@@ -326,9 +336,9 @@ with our architecture decisions:
 | 2.46 — Passive and Spell on Hit effects | ✅ Complete |
 | 2.47 — Spells 1/3 | ✅ Complete |
 | 2.48 — Spells 2/3 | ✅ Complete |
-| 2.49 — Spells 3/3 | ✅ Complete | - execute() negative damage bug (current_hp <= 0.0 guard) - _mudwall_cooldown_timer reset in recalculate() - Duplicate effects in _active_cast_passives  dedup in recalculate) - soulsiphon holy unit amp (value2) not implemented - FacingMarker first-frame timing (mudwall spawns facing UP on first proc)
-| 2.49b — Spells 3/3 | ⬜ Pending |
-| 2.5 — Spell Slots | ⬜ Pending | |
+| 2.49 — Spells 3/3 | ✅ Complete | smite, soulrequiem, soulsiphon, mudwall, base_enemy refactor, Chaser2 |
+| 2.49b — Passives Cleanup | ✅ Complete | cast+enemy collection fix, dedup, combat page integrity, dirty-flag recalculate, soulsiphon holy amp |
+| 2.5 — Wave Structure | ⬜ Pending | Non-spell systems begin here; all spell work stays 2.4x |
 | 3.1 — Boss State Machine | ⬜ Pending | |
 | 3.2 — First Boss | ⬜ Pending | |
 | 3.3 — Boss Metrics | ⬜ Pending | |
