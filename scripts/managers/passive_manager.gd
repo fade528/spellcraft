@@ -29,6 +29,7 @@ var _soul_stacks: int = 0
 var _soul_max: int = 0
 var _mudwall_still_timer: float = 0.0
 var _mudwall_cooldown_timer: float = 0.0
+var _recalculate_queued: bool = false
 const MUDWALL_SPAWN_COOLDOWN: float = 8.0
 
 
@@ -39,8 +40,7 @@ func _ready() -> void:
 			tm.page_changed.connect(recalculate)
 		elif tm.has_signal("page_flipped"):
 			tm.page_flipped.connect(_on_page_flipped)
-	get_tree().node_added.connect(_on_node_added)
-	recalculate()
+	call_deferred("recalculate")
 
 
 func _make_aura_ring(color: Color) -> Line2D:
@@ -367,9 +367,15 @@ func _spawn_mudwall(effect: Dictionary) -> void:
 	if _player != null and is_instance_valid(_player):
 		var facing_marker := _player.get_node_or_null("FacingMarker")
 		if facing_marker != null:
-			mw_dir = Vector2.UP.rotated(facing_marker.rotation)
+			if facing_marker.rotation == 0.0:
+				mw_dir = Vector2.UP
+				print("[Mudwall] FacingMarker.rotation == 0.0 — using default UP direction")
+			else:
+				mw_dir = Vector2.UP.rotated(facing_marker.rotation)
+				print("[Mudwall] FacingMarker.rotation: %.3f — mw_dir: %s" % [facing_marker.rotation, str(mw_dir)])
 		else:
 			mw_dir = Vector2.UP.rotated(_player.rotation)
+			print("[Mudwall] FacingMarker not found — using player.rotation: %.3f" % _player.rotation)
 
 	var mw_scene = load("res://scenes/effects/mud_wall.tscn")
 	if mw_scene == null:
@@ -400,6 +406,14 @@ func _spawn_mudwall(effect: Dictionary) -> void:
 
 
 func recalculate() -> void:
+	if _recalculate_queued:
+		return
+	_recalculate_queued = true
+	call_deferred("_do_recalculate")
+
+
+func _do_recalculate() -> void:
+	_recalculate_queued = false
 	damage_reduction = 0.0
 	element_resist = {}
 	cd_reduction = 0.0
@@ -429,7 +443,22 @@ func recalculate() -> void:
 	if tm == null or not tm.has_method("get_active_page"):
 		return
 
-	var page = tm.get_active_page()
+	var page = tm.get_combat_active_page() if tm.has_method("get_combat_active_page") else tm.get_active_page()
+	print("[PM] recalculate() — page type: %s" % str(typeof(page)))
+	if page is Dictionary:
+		print("[PM] page dict keys: %s" % str((page as Dictionary).keys()))
+	elif page != null:
+		print("[PM] page class: %s" % str(page.get_class()))
+	var _dbg_slots := _get_page_slots(page)
+	print("[PM] slot count from get_active_page(): %d" % _dbg_slots.size())
+	for _si in range(_dbg_slots.size()):
+		var _sl := _dbg_slots[_si]
+		print("[PM]   slot %d — elemental: '%s' emp: '%s' enc: '%s'" % [
+			_si,
+			str(_sl.get("elemental", "")),
+			str(_sl.get("empowerment", "")),
+			str(_sl.get("enchantment", ""))
+		])
 	var slots := _get_page_slots(page)
 	if slots.is_empty():
 		return
@@ -472,11 +501,11 @@ func recalculate() -> void:
 					continue
 				_active_cast_passives.append(effect)
 
-		# Collect cd_type=passive, target=enemy passives
+		# Collect cd_type=passive OR cd_type=cast, target=enemy passives
 		for effect in effects:
 			var ep_target := str(effect.get("target", "")).to_lower()
 			var ep_cd := str(effect.get("cd_type", "")).to_lower()
-			if ep_target == "enemy" and ep_cd == "passive":
+			if ep_target == "enemy" and (ep_cd == "passive" or ep_cd == "cast"):
 				if inv_check != null \
 						and not inv_check.school_allocation.is_empty() \
 						and inv_check.get_school_tier(elemental) == 0:
@@ -486,6 +515,36 @@ func recalculate() -> void:
 	damage_reduction = minf(damage_reduction, 0.75)
 	for key in element_resist:
 		element_resist[key] = minf(element_resist[key], 0.75)
+
+	# Dedup _active_passives by effect_name (keep first occurrence)
+	var _seen_p: Dictionary = {}
+	var _deduped_p: Array[Dictionary] = []
+	for _pp in _active_passives:
+		var _pn: String = str(_pp.get("effect_name", ""))
+		if not _seen_p.has(_pn):
+			_seen_p[_pn] = true
+			_deduped_p.append(_pp)
+	_active_passives = _deduped_p
+
+	# Dedup cast passives by effect_name (keep first occurrence)
+	var _seen_cast: Dictionary = {}
+	var _deduped_cast: Array[Dictionary] = []
+	for _cp in _active_cast_passives:
+		var _cn: String = str(_cp.get("effect_name", ""))
+		if not _seen_cast.has(_cn):
+			_seen_cast[_cn] = true
+			_deduped_cast.append(_cp)
+	_active_cast_passives = _deduped_cast
+
+	# Dedup enemy passives by effect_name (keep first occurrence)
+	var _seen_enemy: Dictionary = {}
+	var _deduped_enemy: Array[Dictionary] = []
+	for _ep in _active_enemy_passives:
+		var _en: String = str(_ep.get("effect_name", ""))
+		if not _seen_enemy.has(_en):
+			_seen_enemy[_en] = true
+			_deduped_enemy.append(_ep)
+	_active_enemy_passives = _deduped_enemy
 
 	# Apply flashcast to all active SpellCasters
 	for caster in get_tree().get_nodes_in_group("spell_casters"):
@@ -571,10 +630,6 @@ func _scaled(effect: Dictionary, base_key: String, scale_key: String) -> float:
 func _on_page_flipped(_index: int) -> void:
 	recalculate()
 
-
-func _on_node_added(node: Node) -> void:
-	if node.is_in_group("player"):
-		call_deferred("recalculate")
 
 
 func _has_property(node: Object, property_name: String) -> bool:
@@ -844,8 +899,13 @@ func get_bloodpower_amp() -> float:
 	return 0.0
 
 
-func get_soulsiphon_leech() -> float:
+func get_soulsiphon_leech(target_element: String = "") -> float:
 	for effect in _active_cast_passives:
 		if effect.get("effect_name", "") == "soulsiphon":
-			return _scaled(effect, "value1", "scale_value1")
+			var base_leech: float = _scaled(effect, "value1", "scale_value1")
+			if target_element.to_lower() == "holy":
+				var holy_bonus: float = _scaled(effect, "value2", "scale_value2")
+				print("[Siphon] holy target — base: %.4f | bonus: %.4f | total: %.4f" % [base_leech, holy_bonus, base_leech + holy_bonus])
+				return base_leech + holy_bonus
+			return base_leech
 	return 0.0

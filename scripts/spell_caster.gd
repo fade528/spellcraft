@@ -168,7 +168,7 @@ func _try_stop_cast_fire() -> void:
 	_spawn_delivery(spawn_position, shot_direction, final_dmg, weakness)
 	# Soulsiphon leech
 	if _passmgr != null and _passmgr.has_method("get_soulsiphon_leech"):
-		var _leech: float = _passmgr.get_soulsiphon_leech()
+		var _leech: float = _passmgr.get_soulsiphon_leech(target_el)
 		if _leech > 0.0:
 			var _heal_amount: float = final_dmg * _leech
 			var _prog = get_node_or_null("/root/ProgressionManager")
@@ -275,6 +275,9 @@ func refresh_spell(
 	delivery_type = new_delivery
 	target_type = new_target
 	_recompose_spell()
+	var _pm := get_node_or_null("/root/PassiveManager")
+	if _pm != null and _pm.has_method("recalculate"):
+		_pm.call_deferred("recalculate")
 
 
 func _on_cooldown_timer_timeout() -> void:
@@ -350,7 +353,7 @@ func _on_cooldown_timer_timeout() -> void:
 	_spawn_delivery(spawn_position, shot_direction, final_dmg, weakness)
 	# Soulsiphon leech
 	if _passmgr != null and _passmgr.has_method("get_soulsiphon_leech"):
-		var _leech: float = _passmgr.get_soulsiphon_leech()
+		var _leech: float = _passmgr.get_soulsiphon_leech(target_el)
 		if _leech > 0.0:
 			var _heal_amount: float = final_dmg * _leech
 			var _prog = get_node_or_null("/root/ProgressionManager")

@@ -5,6 +5,7 @@ const SAVE_DIR := "user://"
 
 var pages: Array = []
 var active_page_index: int = 0
+var combat_active_page_index: int = 0
 var _flip_cooldown: float = 0.0
 var _current_spec_name: String = "archmage"
 
@@ -59,6 +60,7 @@ func flip_to_page(index: int) -> void:
 		return
 
 	active_page_index = index
+	combat_active_page_index = index
 	var page: PageData = pages[index]
 	page.ensure_slots(4)
 
@@ -217,6 +219,10 @@ func get_page(index: int) -> PageData:
 
 func get_active_page() -> PageData:
 	return get_page(active_page_index)
+
+
+func get_combat_active_page() -> PageData:
+	return get_page(combat_active_page_index)
 
 
 func add_page() -> void:
